@@ -6,7 +6,7 @@ export class ZernioClient {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
-    this.baseUrl = `${ZERNIO_API_URL}/v1`
+    this.baseUrl = ZERNIO_API_URL
   }
 
   private async request(
@@ -31,67 +31,94 @@ export class ZernioClient {
     return res.json().catch(() => ({}))
   }
 
-  async sendText(to: string, message: string): Promise<boolean> {
-    await this.request("POST", "/messages/send", {
-      to,
-      type: "text",
-      text: { body: message },
-    })
-    return true
+  async getUser(): Promise<{ id: string; email: string } | null> {
+    try {
+      const data = await this.request("GET", "/v1/users")
+      return data.currentUser ?? data.user ?? data[0] ?? data
+    } catch {
+      return null
+    }
   }
 
-  async sendButtons(
-    to: string,
-    body: string,
-    buttons: Array<{ id: string; title: string }>
-  ): Promise<boolean> {
-    await this.request("POST", "/messages/send", {
-      to,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: { text: body },
-        action: {
-          buttons: buttons.map((b) => ({
-            type: "reply",
-            reply: { id: b.id, title: b.title },
-          })),
-        },
-      },
-    })
-    return true
+  async getProfiles(): Promise<{ id: string; name: string }[]> {
+    const data = await this.request("GET", "/v1/profiles")
+    const profiles = data.profiles ?? data ?? []
+    return (Array.isArray(profiles) ? profiles : []).map((p: any) => ({
+      id: p._id ?? p.id,
+      name: p.name,
+    }))
   }
 
-  async sendList(
-    to: string,
-    header: string,
-    body: string,
-    sections: Array<{
-      title: string
-      rows: Array<{ id: string; title: string; description?: string }>
-    }>
-  ): Promise<boolean> {
-    await this.request("POST", "/messages/send", {
-      to,
-      type: "interactive",
-      interactive: {
-        type: "list",
-        header: { type: "text", text: header },
-        body: { text: body },
-        action: {
-          button: "Pilih",
-          sections: sections.map((s) => ({
-            title: s.title,
-            rows: s.rows.map((r) => ({
-              id: r.id,
-              title: r.title,
-              ...(r.description && { description: r.description }),
-            })),
-          })),
-        },
-      },
+  async getAccounts(
+    platform?: string
+  ): Promise<{ id: string; platform: string; username: string; status: string; name?: string; phone?: string }[]> {
+    const params = platform ? `?platform=${platform}` : ""
+    const data = await this.request("GET", `/v1/accounts${params}`)
+    const raw = data.accounts ?? data?.data?.accounts ?? data ?? []
+    const accounts = Array.isArray(raw) ? raw : []
+    return accounts.map((a: any) => ({
+      id: a._id ?? a.id,
+      platform: a.platform,
+      username: a.username ?? a.displayName ?? a.name ?? "",
+      status: a.status === "disconnected" ? "disconnected" : "connected",
+      name: a.name ?? a.displayName,
+      phone: a.phone ?? a.phoneNumber,
+    }))
+  }
+
+  async createProfile(name: string): Promise<any> {
+    return this.request("POST", "/v1/profiles", { name })
+  }
+
+  async getOrCreateProfile(): Promise<{ id: string; name: string }> {
+    const profiles = await this.getProfiles()
+    if (profiles.length > 0) {
+      return profiles[0]
+    }
+    const created = await this.createProfile("WaBooking")
+    return { id: created._id ?? created.id, name: "WaBooking" }
+  }
+
+  async getConnectUrl(
+    platform: string,
+    profileId: string,
+    redirectUrl?: string,
+    state?: string,
+    headless?: boolean
+  ): Promise<string> {
+    const params = new URLSearchParams({ profileId })
+    if (redirectUrl) params.set("redirect_url", redirectUrl)
+    if (state) params.set("state", state)
+    if (headless) params.set("headless", "true")
+
+    const data = await this.request("GET", `/v1/connect/${platform}?${params}`)
+    return data.authUrl ?? data.url ?? data.auth_url
+  }
+
+  async exchangeOAuthCode(
+    platform: string,
+    code: string,
+    state: string,
+    profileId: string
+  ): Promise<any> {
+    return this.request("POST", `/v1/connect/${platform}`, {
+      code,
+      state,
+      profileId,
     })
-    return true
+  }
+
+  async validateApiKey(): Promise<{
+    valid: boolean
+    error?: string
+  }> {
+    try {
+      const user = await this.getUser()
+      if (!user) return { valid: false, error: "Tidak dapat memvalidasi API key" }
+      return { valid: true }
+    } catch (err: any) {
+      return { valid: false, error: err.message }
+    }
   }
 
   async checkConnection(): Promise<{
@@ -100,10 +127,24 @@ export class ZernioClient {
     error?: string
   }> {
     try {
-      const result = await this.request("GET", "/status")
+      const user = await this.getUser()
+      if (!user) throw new Error("API key tidak valid")
+
+      const accounts = await this.getAccounts()
+      const wa = accounts.find(
+        (a) => a.platform === "whatsapp" || a.platform === "wa"
+      )
+
+      if (wa) {
+        return {
+          connected: wa.status === "connected",
+          waNumber: wa.phone || wa.username || undefined,
+        }
+      }
+
       return {
-        connected: result.connected ?? true,
-        waNumber: result.waNumber,
+        connected: false,
+        waNumber: undefined,
       }
     } catch (err: any) {
       return {
@@ -111,5 +152,71 @@ export class ZernioClient {
         error: err.message,
       }
     }
+  }
+
+  async sendText(to: string, message: string): Promise<boolean> {
+    // Try inbox conversation approach first
+    try {
+      const accounts = await this.getAccounts()
+      const wa = accounts.find((a) => a.platform === "whatsapp")
+      if (wa) {
+        await this.request("POST", "/v1/inbox/conversations", {
+          accountId: wa.id,
+          to,
+          message,
+        })
+        return true
+      }
+    } catch {
+      // fallback: try legacy endpoint
+    }
+
+    await this.request("POST", "/v1/messages/send", {
+      to,
+      type: "text",
+      text: { body: message },
+    })
+    return true
+  }
+
+  async sendInboxMessage(
+    conversationId: string,
+    text: string
+  ): Promise<boolean> {
+    await this.request("POST", `/v1/inbox/conversations/${conversationId}/messages`, {
+      message: text,
+    })
+    return true
+  }
+
+  async sendTemplate(
+    accountId: string,
+    to: string,
+    templateName: string,
+    language: string,
+    variables: Record<string, string>
+  ): Promise<boolean> {
+    await this.request("POST", "/v1/inbox/conversations", {
+      accountId,
+      to,
+      template: {
+        name: templateName,
+        language,
+        components: [
+          {
+            type: "body",
+            parameters: Object.entries(variables).map(([key, val]) => ({
+              type: "text",
+              text: val,
+            })),
+          },
+        ],
+      },
+    })
+    return true
+  }
+
+  async disconnectAccount(accountId: string): Promise<void> {
+    await this.request("DELETE", `/v1/accounts/${accountId}`)
   }
 }

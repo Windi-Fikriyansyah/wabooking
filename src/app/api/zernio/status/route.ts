@@ -17,35 +17,48 @@ export async function GET(req: Request) {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { zernioApiKey: true, zernioConnected: true },
+      select: { zernioApiKey: true, zernioConnected: true, waNumber: true },
     })
 
     if (!business || !business.zernioApiKey) {
       return NextResponse.json({
+        hasApiKey: false,
         connected: false,
-        message: "Belum terhubung ke Zernio",
+        waNumber: null,
       })
     }
 
-    const apiKey = decryptApiKey(business.zernioApiKey)
-    const zernio = new ZernioClient(apiKey)
-    const status = await zernio.checkConnection()
+    // Report DB state first, then try live check without overwriting
+    let liveConnected = false
+    let liveWaNumber: string | null = null
 
-    if (status.connected !== business.zernioConnected) {
-      await prisma.business.update({
-        where: { id: businessId },
-        data: { zernioConnected: status.connected },
-      })
+    try {
+      const apiKey = decryptApiKey(business.zernioApiKey)
+      const zernio = new ZernioClient(apiKey)
+      const status = await zernio.checkConnection()
+      liveConnected = status.connected
+      liveWaNumber = status.waNumber || null
+
+      // Only update DB if we detect a NEW connection (don't un-connect)
+      if (liveConnected && !business.zernioConnected) {
+        await prisma.business.update({
+          where: { id: businessId },
+          data: { zernioConnected: true, waNumber: liveWaNumber },
+        })
+      }
+    } catch {
+      // Live check will reflect stale data; DB state is authoritative
     }
 
     return NextResponse.json({
-      connected: status.connected,
-      waNumber: status.waNumber,
+      hasApiKey: true,
+      connected: business.zernioConnected || liveConnected,
+      waNumber: business.waNumber || liveWaNumber,
     })
   } catch (error) {
     console.error("[ZERNIO STATUS]", error)
     return NextResponse.json(
-      { error: "Gagal mengecek status koneksi Zernio" },
+      { hasApiKey: false, connected: false, waNumber: null, error: "Gagal mengecek status koneksi Zernio" },
       { status: 500 }
     )
   }

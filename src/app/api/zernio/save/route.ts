@@ -15,30 +15,34 @@ export async function POST(req: Request) {
     }
 
     const zernio = new ZernioClient(apiKey)
-    const status = await zernio.checkConnection()
+    const validation = await zernio.validateApiKey()
 
-    if (!status.connected) {
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: status.error || "Gagal terhubung ke Zernio" },
+        { error: validation.error || "API Key tidak valid" },
         { status: 400 }
       )
     }
 
+    const connection = await zernio.checkConnection()
     const encrypted = encryptApiKey(apiKey)
 
     await prisma.business.update({
       where: { id: businessId },
       data: {
         zernioApiKey: encrypted,
-        zernioConnected: true,
+        zernioConnected: connection.connected,
+        waNumber: connection.waNumber || null,
       },
     })
 
     return NextResponse.json({
       success: true,
-      connected: true,
-      waNumber: status.waNumber,
-      message: "Zernio berhasil terhubung",
+      connected: connection.connected,
+      waNumber: connection.waNumber || null,
+      message: connection.connected
+        ? "Zernio berhasil terhubung"
+        : "API Key tersimpan, namun belum ada nomor WhatsApp terhubung di akun Zernio",
     })
   } catch (error) {
     console.error("[ZERNIO SAVE]", error)
