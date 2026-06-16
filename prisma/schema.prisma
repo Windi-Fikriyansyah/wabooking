@@ -23,6 +23,7 @@ enum ReminderType {
 
 enum ReminderStatus {
   PENDING
+  PROCESSING
   SENT
   FAILED
 }
@@ -56,10 +57,12 @@ model Business {
   reminderTemplate String?
   confirmTemplate  String?
   welcomeMessage   String?
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  owner            User      @relation(fields: [ownerId], references: [id])
+  isActive              Boolean   @default(true)
+  dailySummaryEnabled   Boolean   @default(false)
+  dailySummaryTime      String?   @default("08:00")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  owner                 User      @relation(fields: [ownerId], references: [id])
   services         Service[]
   schedules        Schedule[]
   blockedDates     BlockedDate[]
@@ -67,6 +70,7 @@ model Business {
   customers        Customer[]
   botSessions      BotSession[]
   staff            Staff[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Service {
@@ -216,4 +220,14 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  businessId String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { notificationQueue } from "@/lib/queue"
+import { publishEvent } from "@/lib/events"
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -76,6 +78,30 @@ export async function POST(req: Request) {
         notes,
       },
       include: { service: true },
+    })
+
+    // Kirim notifikasi ke pemilik bisnis
+    const scheduledTime = new Date(scheduledAt).toLocaleString("id-ID", {
+      dateStyle: "full",
+      timeStyle: "short",
+    })
+
+    await notificationQueue.add("booking-new", {
+      businessId,
+      type: "booking_new",
+      customerName,
+      serviceName: service.name,
+      scheduledAt: scheduledTime,
+      bookingId: booking.id,
+      status: "PENDING",
+    })
+
+    // Publish event SSE
+    await publishEvent(businessId, "booking_new", {
+      id: booking.id,
+      customerName,
+      serviceName: service.name,
+      scheduledAt,
     })
 
     return NextResponse.json(booking, { status: 201 })

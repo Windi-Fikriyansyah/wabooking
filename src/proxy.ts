@@ -13,6 +13,8 @@ export default auth((req) => {
     "/forgot-password",
     "/reset-password",
     "/api/auth",
+    "/api/cron",
+    "/api/push/vapid-public-key",
   ]
 
   const isPublic = publicPaths.some((p) => pathname.startsWith(p))
