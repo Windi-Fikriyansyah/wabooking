@@ -24,144 +24,118 @@ export async function POST(
       return NextResponse.json({ error: "Business not found" }, { status: 404 })
     }
 
-    const body = await req.json()
-    const waNumber = body.from || body.waNumber
-    const message = body.message?.text || body.message || body.text || ""
-    const messageType = body.message?.type || body.type || "text"
+    const raw = await req.text()
+    const body = JSON.parse(raw)
 
-    if (!waNumber || !message) {
-      return NextResponse.json({ error: "waNumber and message required" }, { status: 400 })
+    // Abaikan event selain message.received
+    if (body.event && body.event !== "message.received") {
+      return NextResponse.json({ received: true })
     }
 
-    const apiKey = business.zernioApiKey ? decryptApiKey(business.zernioApiKey) : null
+    // Respond cepat, proses sisanya async
+    const res = NextResponse.json({ received: true })
 
-    const now = new Date()
-    let session = await prisma.botSession.findUnique({
-      where: { businessId_waNumber: { businessId, waNumber } },
-    })
+    ;(async () => {
+      try {
+        const msg = body.message || body
+        const sender = msg.sender || body.sender || {}
+        const conversation = body.conversation || {}
+        const account = body.account || {}
 
-    if (!session || session.expiresAt < now) {
-      session = await prisma.botSession.upsert({
-        where: { businessId_waNumber: { businessId, waNumber } },
-        update: {
-          state: "IDLE",
-          contextData: {},
-          expiresAt: new Date(now.getTime() + SESSION_TTL),
-        },
-        create: {
-          businessId,
-          waNumber,
-          state: "IDLE",
-          contextData: {},
-          expiresAt: new Date(now.getTime() + SESSION_TTL),
-        },
-      })
-    }
+        const waNumber = sender.phoneNumber || sender.id || conversation.participantId || body.from || body.waNumber || ""
+        const message = msg.text || msg.caption || ""
 
-    const currentState = session.state as BotState
-    const currentContext = (session.contextData || {}) as BotContext
+        if (!waNumber || !message) return
 
-    const globalCmd = isGlobalCommand(message)
-    if (globalCmd) {
-      if (globalCmd === "CANCEL") {
-        await prisma.botSession.update({
-          where: { id: session.id },
-          data: { state: "IDLE", contextData: {} },
+        if (!business.zernioApiKey) return
+        const apiKey = decryptApiKey(business.zernioApiKey)
+
+        const displayName = sender.name || conversation.participantName || body.senderName || body.name || waNumber
+        const avatarUrl = sender.avatar || body.avatarUrl || null
+        const channelId = account.id || body.channelId || conversation.id || waNumber
+
+        await prisma.contact.upsert({
+          where: { businessId_waNumber: { businessId, waNumber } },
+          update: { displayName, avatarUrl, lastInteractionAt: new Date() },
+          create: { businessId, waNumber, displayName, avatarUrl },
         })
-        const reply = "Proses dibatalkan. Jika ingin booking lagi, ketik *booking*."
-        if (apiKey) {
-          const zernio = new ZernioClient(apiKey)
-          await zernio.sendText(waNumber, reply).catch(() => {})
-        }
-        return NextResponse.json({ reply })
-      }
 
-      if (globalCmd === "HELP") {
-        const help =
-          "*Daftar Perintah*\n\n" +
-          "• *booking* — Mulai booking baru\n" +
-          "• *status [kode]* — Cek status booking\n" +
-          "• *batal* / *cancel* — Batalkan proses\n" +
-          "• *bantuan* / *help* — Tampilkan ini"
-        if (apiKey) {
-          const zernio = new ZernioClient(apiKey)
-          await zernio.sendText(waNumber, help).catch(() => {})
-        }
-        return NextResponse.json({ reply: help })
-      }
-
-      if (globalCmd === "STATUS") {
-        const code = message.trim().slice(7).trim().toUpperCase()
-        const booking = await prisma.booking.findFirst({
-          where: { bookingCode: code, businessId },
-          include: { service: true },
+        const contact = await prisma.contact.findUnique({
+          where: { businessId_waNumber: { businessId, waNumber } },
+          select: { id: true },
         })
-        let reply: string
-        if (!booking) {
-          reply = `Booking dengan kode *${code}* tidak ditemukan.`
-        } else {
-          const dateStr = booking.scheduledAt.toLocaleDateString("id-ID", {
-            weekday: "long", day: "numeric", month: "long", year: "numeric",
+
+        if (contact) {
+          await prisma.contactChannel.upsert({
+            where: { contactId_channelId: { contactId: contact.id, channelId } },
+            update: {},
+            create: { contactId: contact.id, channelId, channelType: account.platform || body.channelType || "whatsapp" },
           })
-          const timeStr = booking.scheduledAt.toLocaleTimeString("id-ID", {
-            hour: "2-digit", minute: "2-digit",
+        }
+
+        const now = new Date()
+        let session = await prisma.botSession.findUnique({
+          where: { businessId_waNumber: { businessId, waNumber } },
+        })
+
+        if (!session || session.expiresAt < now) {
+          session = await prisma.botSession.upsert({
+            where: { businessId_waNumber: { businessId, waNumber } },
+            update: { state: "IDLE", contextData: {}, expiresAt: new Date(now.getTime() + SESSION_TTL) },
+            create: { businessId, waNumber, state: "IDLE", contextData: {}, expiresAt: new Date(now.getTime() + SESSION_TTL) },
           })
-          reply =
-            `*Status Booking*\n\n` +
-            `Kode: ${booking.bookingCode}\n` +
-            `Layanan: ${booking.service.name}\n` +
-            `Tanggal: ${dateStr}\n` +
-            `Jam: ${timeStr}\n` +
-            `Status: ${booking.status}`
         }
-        if (apiKey) {
-          const zernio = new ZernioClient(apiKey)
-          await zernio.sendText(waNumber, reply).catch(() => {})
+
+        const currentState = session.state as BotState
+        const currentContext = (session.contextData || {}) as BotContext
+
+        const globalCmd = isGlobalCommand(message)
+        if (globalCmd) {
+          if (globalCmd === "CANCEL") {
+            await prisma.botSession.update({ where: { id: session.id }, data: { state: "IDLE", contextData: {} } })
+            const zernio = new ZernioClient(apiKey)
+            await zernio.sendText(waNumber, "Proses dibatalkan. Jika ingin booking lagi, ketik *booking*.").catch(() => {})
+            return
+          }
+          if (globalCmd === "HELP") {
+            const help = "*Daftar Perintah*\n\n• *booking* — Mulai booking baru\n• *status [kode]* — Cek status booking\n• *batal* / *cancel* — Batalkan proses\n• *bantuan* / *help* — Tampilkan ini"
+            const zernio = new ZernioClient(apiKey)
+            await zernio.sendText(waNumber, help).catch(() => {})
+            return
+          }
+          if (globalCmd === "STATUS") {
+            const code = message.trim().slice(7).trim().toUpperCase()
+            const booking = await prisma.booking.findFirst({ where: { bookingCode: code, businessId }, include: { service: true } })
+            let reply: string
+            if (!booking) {
+              reply = `Booking dengan kode *${code}* tidak ditemukan.`
+            } else {
+              const dateStr = booking.scheduledAt.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+              const timeStr = booking.scheduledAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+              reply = `*Status Booking*\n\nKode: ${booking.bookingCode}\nLayanan: ${booking.service.name}\nTanggal: ${dateStr}\nJam: ${timeStr}\nStatus: ${booking.status}`
+            }
+            const zernio = new ZernioClient(apiKey)
+            await zernio.sendText(waNumber, reply).catch(() => {})
+            return
+          }
         }
-        return NextResponse.json({ reply })
+
+        const handler = handlers[currentState]
+        const result = handler
+          ? await handler({ businessId, waNumber, message, state: currentState, context: currentContext })
+          : await handlers.IDLE({ businessId, waNumber, message, state: "IDLE", context: {} })
+
+        const ttl = result.newState === "CONFIRM" ? CONFIRM_TTL : SESSION_TTL
+        await prisma.botSession.update({ where: { id: session.id }, data: { state: result.newState, contextData: (result.context || currentContext) as any, expiresAt: new Date(Date.now() + ttl) } })
+
+        const zernio = new ZernioClient(apiKey)
+        await zernio.sendText(waNumber, result.reply).catch((err: Error) => console.error("[WEBHOOK] Gagal kirim pesan:", err.message))
+      } catch (e) {
+        console.error("[WEBHOOK] Async error:", e)
       }
-    }
+    })()
 
-    const handler = handlers[currentState]
-    let result: { reply: string; newState: BotState; context?: BotContext }
-
-    if (handler) {
-      result = await handler({
-        businessId,
-        waNumber,
-        message,
-        state: currentState,
-        context: currentContext,
-      })
-    } else {
-      result = await handlers.IDLE({
-        businessId,
-        waNumber,
-        message,
-        state: "IDLE",
-        context: {},
-      })
-    }
-
-    const ttl = result.newState === "CONFIRM" ? CONFIRM_TTL : SESSION_TTL
-
-    await prisma.botSession.update({
-      where: { id: session.id },
-      data: {
-        state: result.newState,
-        contextData: (result.context || currentContext) as any,
-        expiresAt: new Date(Date.now() + ttl),
-      },
-    })
-
-    if (apiKey) {
-      const zernio = new ZernioClient(apiKey)
-      await zernio.sendText(waNumber, result.reply).catch((err) => {
-        console.error("[WEBHOOK] Gagal kirim pesan:", err.message)
-      })
-    }
-
-    return NextResponse.json({ reply: result.reply })
+    return res
   } catch (error) {
     console.error("[WEBHOOK]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

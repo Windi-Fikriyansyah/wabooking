@@ -637,6 +637,52 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
             </div>
           </div>
         </div>
+      ) : null}
+
+      {waConnected ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={async () => {
+              setDisconnecting(true)
+              try {
+                let accId = waAccount?.id
+                if (!accId) {
+                  const acctRes = await fetch(`/api/zernio/accounts?businessId=${business.id}`)
+                  if (acctRes.ok) {
+                    const acctData = await acctRes.json()
+                    const wa = Array.isArray(acctData.accounts)
+                      ? acctData.accounts.find(
+                          (a: any) =>
+                            (a.platform === "whatsapp" || a.platform === "wa") &&
+                            a.status === "connected"
+                        )
+                      : null
+                    accId = wa?.id || status?.waNumber || business.waNumber
+                  }
+                }
+                if (!accId) return
+                const res = await fetch("/api/zernio/disconnect-wa", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ businessId: business.id, accountId: accId }),
+                })
+                if (!res.ok) throw new Error("Gagal disconnect")
+                setWaAccount(null)
+                setStatus({ hasApiKey: !!status?.hasApiKey, waConnected: false })
+                onUpdate({ ...business, zernioConnected: false, waNumber: "", waConnected: false })
+              } catch {
+                setConnError("Gagal memutuskan WhatsApp")
+              } finally {
+                setDisconnecting(false)
+              }
+            }}
+            disabled={disconnecting}
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            {disconnecting ? "Memutuskan..." : "Putuskan WhatsApp"}
+          </button>
+        </div>
       ) : (
         <Card>
           <div className="space-y-3">

@@ -14,6 +14,7 @@ export default auth((req) => {
     "/reset-password",
     "/api/auth",
     "/api/cron",
+    "/api/webhook",
     "/api/push/vapid-public-key",
   ]
 

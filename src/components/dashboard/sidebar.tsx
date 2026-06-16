@@ -9,7 +9,7 @@ const menu = [
   { href: "/bookings", label: "Booking", icon: "calendar" },
   { href: "/services", label: "Layanan", icon: "settings" },
   { href: "/schedule", label: "Jadwal", icon: "clock" },
-  { href: "/customers", label: "Pelanggan", icon: "users" },
+  { href: "/contacts", label: "Kontak", icon: "users" },
   { href: "/analytics", label: "Laporan", icon: "chart", disabled: true },
   { href: "/settings", label: "Pengaturan", icon: "user" },
 ]

@@ -70,6 +70,7 @@ model Business {
   customers        Customer[]
   botSessions      BotSession[]
   staff            Staff[]
+  contacts         Contact[]
   pushSubscriptions PushSubscription[]
 }
 
@@ -220,6 +221,36 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Contact {
+  id                 String           @id @default(cuid())
+  businessId         String
+  waNumber           String
+  displayName        String?
+  avatarUrl          String?
+  lastInteractionAt  DateTime         @default(now())
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  business           Business         @relation(fields: [businessId], references: [id])
+  contactChannels    ContactChannel[]
+
+  @@unique([businessId, waNumber])
+  @@index([businessId])
+}
+
+model ContactChannel {
+  id          String   @id @default(cuid())
+  contactId   String
+  channelId   String
+  channelType String   @default("whatsapp")
+  createdAt   DateTime @default(now())
+
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, channelId])
+  @@index([channelId])
 }
 
 model PushSubscription {

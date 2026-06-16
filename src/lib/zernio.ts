@@ -219,4 +219,56 @@ export class ZernioClient {
   async disconnectAccount(accountId: string): Promise<void> {
     await this.request("DELETE", `/v1/accounts/${accountId}`)
   }
+
+  async listContacts(platform: string = "whatsapp", limit: number = 200): Promise<{
+    id: string; name: string; avatarUrl: string | null; platformIdentifier: string; displayIdentifier: string
+  }[]> {
+    try {
+      const data = await this.request("GET", `/v1/contacts?platform=${platform}&limit=${limit}`)
+      const list = data.contacts ?? data?.data ?? []
+      return (Array.isArray(list) ? list : []).map((c: any) => ({
+        id: c._id ?? c.id,
+        name: c.name || c.displayIdentifier || "",
+        avatarUrl: c.avatarUrl || null,
+        platformIdentifier: c.platformIdentifier || "",
+        displayIdentifier: c.displayIdentifier || "",
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  async registerWebhook(url: string, events: string[] = ["message.received"]): Promise<{ id: string } | null> {
+    try {
+      const data = await this.request("POST", "/v1/webhooks/settings", {
+        name: "WaBooking",
+        url,
+        events,
+        isActive: true,
+      })
+      const wh = data.webhook ?? data
+      return { id: wh._id ?? wh.id }
+    } catch {
+      return null
+    }
+  }
+
+  async listWebhooks(): Promise<{ _id: string; url: string; events: string[] }[]> {
+    const data = await this.request("GET", "/v1/webhooks/settings")
+    const list = data.webhooks ?? data ?? []
+    return (Array.isArray(list) ? list : []).map((w: any) => ({
+      _id: w._id ?? w.id,
+      url: w.url,
+      events: w.events,
+    }))
+  }
+
+  async deleteWebhook(webhookId: string): Promise<boolean> {
+    try {
+      await this.request("DELETE", "/v1/webhooks/settings", { _id: webhookId })
+      return true
+    } catch {
+      return false
+    }
+  }
 }

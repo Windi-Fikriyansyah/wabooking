@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
+import { syncContactsFromZernio } from "@/lib/sync-contacts"
 
 export async function GET(req: Request) {
   try {
@@ -58,6 +59,11 @@ export async function GET(req: Request) {
         waNumber: waNumber,
       },
     })
+
+    // Sync contacts from Zernio
+    syncContactsFromZernio(businessId).catch((err) =>
+      console.error("[ZERNIO CALLBACK] Gagal sync kontak:", err)
+    )
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     const redirectUrl = new URL("/settings", baseUrl)

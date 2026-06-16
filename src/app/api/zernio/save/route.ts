@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db"
 import { encryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
+const APP_URL = process.env.AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
 export async function POST(req: Request) {
   try {
     const { apiKey, businessId } = await req.json()
@@ -35,6 +37,14 @@ export async function POST(req: Request) {
         waNumber: connection.waNumber || null,
       },
     })
+
+    // Register webhook ke Zernio
+    const webhookUrl = `${APP_URL.replace(/\/+$/, "")}/api/webhook/${businessId}`
+    const existing = await zernio.listWebhooks()
+    const already = existing.find((w) => w.url === webhookUrl)
+    if (!already) {
+      await zernio.registerWebhook(webhookUrl)
+    }
 
     return NextResponse.json({
       success: true,
