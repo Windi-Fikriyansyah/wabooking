@@ -23,15 +23,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <div className="flex">
+    <div className="h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      <div className="flex h-full">
         <Sidebar
           businessName={business?.name || "WaBooking"}
           userName={session?.user?.name || "User"}
           waConnected={business?.waConnected || false}
           onLogout={() => signOut({ callbackUrl: "/login" })}
         />
-        <main className="flex-1 md:ml-0 pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>

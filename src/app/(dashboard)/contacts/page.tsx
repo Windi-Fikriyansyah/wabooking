@@ -1,10 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Card } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
+
+const PAGE_SIZE = 20
 
 interface ContactChannel {
   id: string
@@ -64,11 +66,16 @@ function SearchIcon() {
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [search, setSearch] = useState("")
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [search, setSearch] = useState("")
   const [businessId, setBusinessId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const loadBusiness = useCallback(async () => {
     const res = await fetch("/api/business")
@@ -78,42 +85,57 @@ export default function ContactsPage() {
     return data[0].id
   }, [])
 
-  const loadContacts = useCallback(async (bizId: string, q: string) => {
-    const params = new URLSearchParams({ businessId: bizId })
+  const fetchContacts = useCallback(async (bizId: string, q: string, off: number) => {
+    const params = new URLSearchParams({ businessId: bizId, limit: String(PAGE_SIZE), offset: String(off) })
     if (q.trim()) params.set("search", q.trim())
     const res = await fetch(`/api/contacts?${params}`)
     if (!res.ok) throw new Error("Gagal memuat kontak")
-    return (await res.json()) as Contact[]
+    return res.json() as Promise<{ contacts: Contact[]; pagination: { total: number; hasMore: boolean } }>
   }, [])
+
+  const resetAndLoad = useCallback(async (bizId: string, q: string) => {
+    setLoading(true)
+    setOffset(0)
+    try {
+      const data = await fetchContacts(bizId, q, 0)
+      setContacts(data.contacts)
+      setTotal(data.pagination.total)
+      setHasMore(data.pagination.hasMore)
+    } catch { } finally {
+      setLoading(false)
+    }
+  }, [fetchContacts])
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-
-    loadBusiness()
-      .then(async (bizId) => {
-        if (cancelled) return
-        setBusinessId(bizId)
-        const data = await loadContacts(bizId, search)
-        if (cancelled) return
-        setContacts(data)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
+    loadBusiness().then(async (bizId) => {
+      if (cancelled) return
+      setBusinessId(bizId)
+      await resetAndLoad(bizId, search)
+    }).catch(() => {}).finally(() => { if (cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [loadBusiness, loadContacts])
+  }, [loadBusiness, resetAndLoad])
 
   useEffect(() => {
     if (!businessId) return
-    const timer = setTimeout(async () => {
-      const data = await loadContacts(businessId, search)
-      setContacts(data)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [search, businessId, loadContacts])
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => resetAndLoad(businessId, search), 300)
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
+  }, [search, businessId, resetAndLoad])
+
+  const loadMore = async () => {
+    if (!businessId || loadingMore || !hasMore) return
+    setLoadingMore(true)
+    const newOffset = offset + PAGE_SIZE
+    try {
+      const data = await fetchContacts(businessId, search, newOffset)
+      setContacts((prev) => [...prev, ...data.contacts])
+      setOffset(newOffset)
+      setHasMore(data.pagination.hasMore)
+    } catch { } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const syncContacts = async () => {
     if (!businessId) return
@@ -128,8 +150,7 @@ export default function ContactsPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Gagal sync")
       setSyncMsg(data.message)
-      const updated = await loadContacts(businessId, search)
-      setContacts(updated)
+      await resetAndLoad(businessId, search)
     } catch (e: any) {
       setSyncMsg(e.message)
     } finally {
@@ -143,15 +164,11 @@ export default function ContactsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Kontak</h1>
         <div className="flex items-center gap-3">
-          {syncMsg && (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">{syncMsg}</span>
-          )}
+          {syncMsg && <span className="text-sm text-zinc-500 dark:text-zinc-400">{syncMsg}</span>}
           <Button variant="outline" onClick={syncContacts} loading={syncing}>
             {syncing ? "Menyinkronkan..." : "Sync Kontak"}
           </Button>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {contacts.length} kontak
-          </span>
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">{total} kontak</span>
         </div>
       </div>
 
@@ -186,9 +203,7 @@ export default function ContactsPage() {
           <svg className="mb-4 h-12 w-12 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
           </svg>
-          <p className="mb-1 text-sm font-medium text-zinc-600 dark:text-zinc-400">
-            Belum ada kontak
-          </p>
+          <p className="mb-1 text-sm font-medium text-zinc-600 dark:text-zinc-400">Belum ada kontak</p>
           <p className="text-sm text-zinc-400 dark:text-zinc-500">
             Kontak akan muncul setelah ada pesan WhatsApp masuk, atau klik <strong>Sync Kontak</strong> untuk mengambil dari Zernio.
           </p>
@@ -206,18 +221,22 @@ export default function ContactsPage() {
                     </p>
                     <Badge variant="green">WA</Badge>
                   </div>
-                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {contact.waNumber}
-                  </p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{contact.waNumber}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                    {formatDate(contact.lastInteractionAt)}
-                  </p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">{formatDate(contact.lastInteractionAt)}</p>
                 </div>
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {hasMore && !loading && (
+        <div className="flex justify-center pt-2">
+          <Button variant="outline" onClick={loadMore} loading={loadingMore}>
+            {loadingMore ? "Memuat..." : "Muat Lebih Banyak"}
+          </Button>
         </div>
       )}
     </div>
