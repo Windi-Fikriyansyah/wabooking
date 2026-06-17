@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { getAvailableSlots, getNext7Days, formatDate, isSlotAvailable } from "@/lib/bot/availability"
-import type { BotState, BotContext } from "@/lib/bot/state-machine"
+import type { BotState, BotContext, HandlerResult } from "@/lib/bot/state-machine"
 
 interface HandlerParams {
   businessId: string
@@ -10,7 +10,7 @@ interface HandlerParams {
   context: BotContext
 }
 
-export async function handleIdle({ businessId, waNumber }: HandlerParams) {
+export async function handleIdle({ businessId }: HandlerParams): Promise<HandlerResult> {
   const business = await prisma.business.findUnique({ where: { id: businessId } })
   const services = await prisma.service.findMany({
     where: { businessId, isActive: true },
@@ -20,7 +20,7 @@ export async function handleIdle({ businessId, waNumber }: HandlerParams) {
   if (services.length === 0) {
     return {
       reply: "Maaf, belum ada layanan tersedia saat ini.",
-      newState: "IDLE" as BotState,
+      newState: "IDLE",
     }
   }
 
@@ -31,10 +31,29 @@ export async function handleIdle({ businessId, waNumber }: HandlerParams) {
   const welcome = business?.welcomeMessage || "Halo! Selamat datang di layanan booking kami."
   const reply = `${welcome}\n\nSilakan pilih layanan:\n\n${serviceList}\n\nKetik nomor layanan yang dipilih.`
 
-  return { reply, newState: "SELECT_SERVICE" as BotState }
+  const interactive = {
+    type: "list",
+    header: { type: "text", text: "Pilih Layanan" },
+    body: { text: welcome },
+    action: {
+      button: "Pilih Layanan",
+      sections: [
+        {
+          title: "Layanan",
+          rows: services.map((s, i) => ({
+            id: String(i + 1),
+            title: s.name,
+            description: `${s.durationMinutes} menit${s.price ? ` - Rp${Number(s.price).toLocaleString("id-ID")}` : ""}`,
+          })),
+        },
+      ],
+    },
+  }
+
+  return { reply, newState: "SELECT_SERVICE", interactive }
 }
 
-export async function handleSelectService({ businessId, message, context }: HandlerParams) {
+export async function handleSelectService({ businessId, message, context }: HandlerParams): Promise<HandlerResult> {
   const services = await prisma.service.findMany({
     where: { businessId, isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -44,7 +63,7 @@ export async function handleSelectService({ businessId, message, context }: Hand
   if (isNaN(idx) || idx < 0 || idx >= services.length) {
     return {
       reply: "Pilihan tidak valid. Silakan ketik nomor layanan yang tersedia.",
-      newState: "SELECT_SERVICE" as BotState,
+      newState: "SELECT_SERVICE",
       context,
     }
   }
@@ -57,7 +76,7 @@ export async function handleSelectService({ businessId, message, context }: Hand
 
   return {
     reply: `Kamu memilih *${selected.name}* (${selected.durationMinutes} menit).\n\nPilih tanggal:\n\n${dayList}\n\nKetik nomor tanggal.`,
-    newState: "SELECT_DATE" as BotState,
+    newState: "SELECT_DATE",
     context: {
       serviceId: selected.id,
       serviceName: selected.name,
@@ -286,7 +305,7 @@ export async function handleConfirm({ businessId, waNumber, message, context }: 
 
 export const handlers: Record<
   BotState,
-  (params: HandlerParams) => Promise<{ reply: string; newState: BotState; context?: any }>
+  (params: HandlerParams) => Promise<HandlerResult>
 > = {
   IDLE: handleIdle,
   SELECT_SERVICE: handleSelectService,

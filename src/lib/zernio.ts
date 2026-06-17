@@ -1,4 +1,4 @@
-const ZERNIO_API_URL = process.env.ZERNIO_API_URL || "https://api.zernio.com"
+const ZERNIO_API_URL = process.env.ZERNIO_API_URL || "https://zernio.com/api"
 
 export class ZernioClient {
   private apiKey: string
@@ -155,36 +155,38 @@ export class ZernioClient {
   }
 
   async sendText(to: string, message: string): Promise<boolean> {
-    // Try inbox conversation approach first
-    try {
-      const accounts = await this.getAccounts()
-      const wa = accounts.find((a) => a.platform === "whatsapp")
-      if (wa) {
-        await this.request("POST", "/v1/inbox/conversations", {
-          accountId: wa.id,
-          to,
-          message,
-        })
-        return true
-      }
-    } catch {
-      // fallback: try legacy endpoint
-    }
+    const accounts = await this.getAccounts()
+    const wa = accounts.find((a) => a.platform === "whatsapp")
+    if (!wa) throw new Error("Tidak ada akun WhatsApp terhubung")
 
-    await this.request("POST", "/v1/messages/send", {
-      to,
-      type: "text",
-      text: { body: message },
+    await this.request("POST", "/v1/inbox/conversations", {
+      accountId: wa.id,
+      participantId: to,
+      message,
     })
     return true
   }
 
   async sendInboxMessage(
     conversationId: string,
+    accountId: string,
     text: string
   ): Promise<boolean> {
     await this.request("POST", `/v1/inbox/conversations/${conversationId}/messages`, {
+      accountId,
       message: text,
+    })
+    return true
+  }
+
+  async sendInteractive(
+    conversationId: string,
+    accountId: string,
+    interactive: Record<string, unknown>
+  ): Promise<boolean> {
+    await this.request("POST", `/v1/inbox/conversations/${conversationId}/messages`, {
+      accountId,
+      interactive,
     })
     return true
   }
