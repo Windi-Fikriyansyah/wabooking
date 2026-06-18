@@ -200,7 +200,7 @@ export class ZernioClient {
     await this.request("POST", `/v1/inbox/conversations/${conversationId}/messages`, {
       accountId,
       message: text,
-      buttons: buttons.map((b) => ({ type: "reply", reply: { id: b.id, title: b.title } })),
+      buttons: buttons.map((b) => ({ id: b.id, title: b.title })),
     })
     return true
   }

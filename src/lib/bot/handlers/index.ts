@@ -399,7 +399,7 @@ export async function handleInputName({ businessId, waNumber, message, context }
   }
 
   return {
-    reply: summary + "\n\nKetik *YA* atau *TIDAK*.",
+    reply: summary,
     newState: "CONFIRM" as BotState,
     context: { ...context, customerName: name, customerWa: waNumber },
     interactive,
@@ -413,10 +413,41 @@ export async function handleConfirm({ businessId, waNumber, message, context }: 
   const isNo = ["2", "tidak", "no", "batal", "cancel"].includes(lower)
 
   if (!isYes && !isNo) {
+    // Re-send the confirmation with buttons instead of asking user to type
+    const { serviceName, serviceDuration, date, time, customerName } = context
+    const bookingDate = date ? new Date(date) : new Date()
+    const dateStr = bookingDate.toLocaleDateString("id-ID", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+
+    const summary =
+      `*Konfirmasi Booking*\n\n` +
+      `Layanan: ${serviceName || "-"}\n` +
+      `Tanggal: ${dateStr}\n` +
+      `Jam: ${time || "-"}\n` +
+      `Durasi: ${serviceDuration || "-"} menit\n` +
+      `Nama: ${customerName || "-"}\n\n` +
+      `Apakah data di atas sudah benar?`
+
+    const interactive = {
+      type: "button",
+      body: { text: summary },
+      action: {
+        buttons: [
+          { type: "reply", reply: { id: "YA", title: "Ya" } },
+          { type: "reply", reply: { id: "TIDAK", title: "Tidak" } },
+        ],
+      },
+    }
+
     return {
-      reply: "Ketik *1* (YA) untuk konfirmasi atau *2* (TIDAK) untuk batalkan.",
+      reply: summary,
       newState: "CONFIRM" as BotState,
       context,
+      interactive,
     }
   }
 
