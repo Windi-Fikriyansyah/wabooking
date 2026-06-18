@@ -51,6 +51,8 @@ export async function POST(
 
         if (!waNumber || !message) return
 
+        console.log("[WEBHOOK] incoming:", JSON.stringify({ conversationId, accountId: account.id, isListReply, message, waNumber }))
+
         const displayName = sender.name || conversation.participantName || body.senderName || body.name || waNumber
         const avatarUrl = sender.avatar || body.avatarUrl || null
         const channelId = account.id || body.channelId || conversation.id || waNumber
@@ -106,11 +108,11 @@ export async function POST(
         if (globalCmd) {
           if (globalCmd === "CANCEL") {
             await prisma.botSession.update({ where: { id: session.id }, data: { state: "IDLE", contextData: {} } })
-            await sendReply("Proses dibatalkan. Jika ingin booking lagi, ketik *booking*.")
+            await sendReply("Proses dibatalkan. Ketik *menu* untuk kembali.")
             return
           }
           if (globalCmd === "HELP") {
-            const help = "*Daftar Perintah*\n\n• *booking* — Mulai booking baru\n• *status [kode]* — Cek status booking\n• *batal* / *cancel* — Batalkan proses\n• *bantuan* / *help* — Tampilkan ini"
+            const help = "*Daftar Perintah*\n\n• *menu* — Kembali ke menu utama\n• *booking* — Mulai booking baru\n• *status [kode]* — Cek status booking\n• *batal* / *cancel* — Batalkan proses\n• *bantuan* / *help* — Tampilkan ini"
             await sendReply(help)
             return
           }
@@ -128,13 +130,20 @@ export async function POST(
             await sendReply(reply)
             return
           }
-          if (globalCmd === "START") {
-            // Reset sesi dan mulai dari IDLE
+          if (globalCmd === "START" || globalCmd === "MENU") {
             await prisma.botSession.update({
               where: { id: session.id },
               data: { state: "IDLE", contextData: {} },
             })
             currentState = "IDLE" as BotState
+            currentContext = {}
+          }
+          if (globalCmd === "BOOKING") {
+            await prisma.botSession.update({
+              where: { id: session.id },
+              data: { state: "BOOKING_START", contextData: {} },
+            })
+            currentState = "BOOKING_START" as BotState
             currentContext = {}
           }
         }
@@ -144,12 +153,35 @@ export async function POST(
           ? await handler({ businessId, waNumber, message, state: currentState, context: currentContext })
           : await handlers.IDLE({ businessId, waNumber, message, state: "IDLE", context: {} })
 
+        console.log("[WEBHOOK] handler result:", JSON.stringify({ newState: result.newState, hasInteractive: !!result.interactive, hasFlow: !!result.flowMessage, replyPreview: result.reply?.slice(0, 60) }))
+
         const ttl = result.newState === "CONFIRM" ? CONFIRM_TTL : SESSION_TTL
         await prisma.botSession.update({ where: { id: session.id }, data: { state: result.newState, contextData: (result.context || currentContext) as any, expiresAt: new Date(Date.now() + ttl) } })
 
-        if (result.interactive && conversationId && account.id) {
-          await zernio.sendInteractive(conversationId, account.id, result.interactive)
-            .catch((err: Error) => console.error("[WEBHOOK] Gagal kirim interactive:", err.message))
+        // Prioritaskan flow message > interactive > text
+        if (result.flowMessage && account.id) {
+          const flowRes = await zernio.sendFlowMessage({
+            accountId: account.id,
+            to: waNumber,
+            flow_id: result.flowMessage.flow_id,
+            flow_cta: result.flowMessage.flow_cta,
+            body: result.flowMessage.body,
+            header: result.flowMessage.header,
+            footer: result.flowMessage.footer,
+            flow_action_payload: result.flowMessage.flow_action_payload,
+            flow_token: `booking_${businessId}_${waNumber}_${Date.now()}`,
+          });
+          if ("error" in flowRes) console.error("[WEBHOOK] Gagal kirim flow:", flowRes.error)
+        } else if (result.interactive) {
+          if (conversationId && account.id) {
+            await zernio.sendInteractive(conversationId, account.id, result.interactive)
+              .catch((err: Error) => {
+                console.error("[WEBHOOK] Gagal kirim interactive:", err.message)
+                sendReply(result.reply)
+              })
+          } else {
+            await sendReply(result.reply)
+          }
         } else {
           await sendReply(result.reply)
         }

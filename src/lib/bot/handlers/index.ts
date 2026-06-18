@@ -12,6 +12,87 @@ interface HandlerParams {
 
 export async function handleIdle({ businessId }: HandlerParams): Promise<HandlerResult> {
   const business = await prisma.business.findUnique({ where: { id: businessId } })
+
+  const welcome = business?.welcomeMessage || "Halo! Selamat datang di layanan booking kami."
+
+  const reply =
+    `${welcome}\n\n` +
+    `Silakan pilih menu di bawah ini:`
+
+  const interactive = {
+    type: "list",
+    header: { type: "text", text: "Menu Utama" },
+    body: { text: welcome },
+    footer: { text: "Pilih salah satu menu" },
+    action: {
+      button: "Lihat Menu",
+      sections: [
+        {
+          title: "Menu",
+          rows: [
+            { id: "1", title: "Detail Bisnis", description: "Informasi tentang bisnis kami" },
+            { id: "2", title: "Booking", description: "Booking layanan sekarang" },
+            { id: "3", title: "Lihat Booking", description: "Cek status booking" },
+            { id: "4", title: "Jam Operasional", description: "Lihat jam kerja" },
+          ],
+        },
+      ],
+    },
+  }
+
+  return { reply, newState: "MAIN_MENU", interactive }
+}
+
+export async function handleMainMenu({ businessId, message }: HandlerParams): Promise<HandlerResult> {
+  const lower = message.trim()
+
+  if (lower === "1" || lower.toLowerCase() === "detail bisnis") {
+    const business = await prisma.business.findUnique({ where: { id: businessId } })
+    const info =
+      `*Detail Bisnis*\n\n` +
+      `${business?.name || "Nama bisnis tidak tersedia"}\n\n` +
+      `${business?.description || "Belum ada deskripsi."}\n\n` +
+      `Ketik *menu* untuk kembali.`
+    return { reply: info, newState: "MAIN_MENU" }
+  }
+
+  if (lower === "2" || lower.toLowerCase() === "booking") {
+    return await handleBookingStart({ businessId, waNumber: "", message, state: "MAIN_MENU", context: {} })
+  }
+
+  if (lower === "3" || lower.toLowerCase() === "lihat booking") {
+    return {
+      reply: "Masukkan kode booking kamu untuk cek status:\n\nKetik kode booking atau ketik *menu* untuk kembali.",
+      newState: "VIEW_BOOKING",
+    }
+  }
+
+  if (lower === "4" || lower.toLowerCase() === "jam operasional") {
+    const schedules = await prisma.schedule.findMany({
+      where: { businessId, isActive: true },
+      orderBy: { dayOfWeek: "asc" },
+    })
+
+    const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
+    let info = "*Jam Operasional*\n\n"
+    if (schedules.length > 0) {
+      for (const s of schedules) {
+        info += `${dayNames[s.dayOfWeek]}: ${s.openTime} - ${s.closeTime}\n`
+      }
+    } else {
+      info += "Belum diatur.\n"
+    }
+    info += "\nKetik *menu* untuk kembali."
+    return { reply: info, newState: "MAIN_MENU" }
+  }
+
+  return {
+    reply: "Pilihan tidak valid. Silakan pilih 1-4 atau ketik *menu*.\n\n1. Detail Bisnis\n2. Booking\n3. Lihat Booking\n4. Jam Operasional",
+    newState: "MAIN_MENU",
+  }
+}
+
+export async function handleBookingStart({ businessId }: HandlerParams): Promise<HandlerResult> {
   const services = await prisma.service.findMany({
     where: { businessId, isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -19,8 +100,8 @@ export async function handleIdle({ businessId }: HandlerParams): Promise<Handler
 
   if (services.length === 0) {
     return {
-      reply: "Maaf, belum ada layanan tersedia saat ini.",
-      newState: "IDLE",
+      reply: "Maaf, belum ada layanan tersedia. Ketik *menu* untuk kembali.",
+      newState: "MAIN_MENU",
     }
   }
 
@@ -28,18 +109,15 @@ export async function handleIdle({ businessId }: HandlerParams): Promise<Handler
     .map((s, i) => `${i + 1}. ${s.name} — ${s.durationMinutes} menit${s.price ? ` (Rp${s.price})` : ""}`)
     .join("\n")
 
-  const welcome = business?.welcomeMessage || "Halo! Selamat datang di layanan booking kami."
-  const reply = `${welcome}\n\nSilakan pilih layanan:\n\n${serviceList}\n\nKetik nomor layanan yang dipilih.`
-
   const interactive = {
     type: "list",
     header: { type: "text", text: "Pilih Layanan" },
-    body: { text: welcome },
+    body: { text: `Untuk melanjutkan proses booking, silakan pilih layanan yang Anda butuhkan:` },
     action: {
       button: "Pilih Layanan",
       sections: [
         {
-          title: "Layanan",
+          title: "Layanan Tersedia",
           rows: services.map((s, i) => ({
             id: String(i + 1),
             title: s.name,
@@ -50,10 +128,61 @@ export async function handleIdle({ businessId }: HandlerParams): Promise<Handler
     },
   }
 
-  return { reply, newState: "SELECT_SERVICE", interactive }
+  return {
+    reply: `Untuk melanjutkan proses booking, silakan pilih layanan yang Anda butuhkan:\n\n${serviceList}`,
+    newState: "SELECT_SERVICE",
+    interactive,
+  }
 }
 
+export async function handleViewBooking({ businessId, message }: HandlerParams): Promise<HandlerResult> {
+  const code = message.trim().toUpperCase()
+
+  const booking = await prisma.booking.findUnique({
+    where: { bookingCode: code },
+    include: { service: true },
+  })
+
+  if (!booking || booking.businessId !== businessId) {
+    return {
+      reply: "Kode booking tidak ditemukan. Periksa kembali kode atau ketik *menu*.\n\nMasukkan kode booking:",
+      newState: "VIEW_BOOKING",
+    }
+  }
+
+  const dateStr = booking.scheduledAt.toLocaleDateString("id-ID", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  })
+  const timeStr = booking.scheduledAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+
+  const statusMap: Record<string, string> = {
+    PENDING: "Menunggu Konfirmasi",
+    CONFIRMED: "Dikonfirmasi",
+    COMPLETED: "Selesai",
+    CANCELLED: "Dibatalkan",
+  }
+
+  return {
+    reply:
+      `*Detail Booking*\n\n` +
+      `Kode: ${booking.bookingCode}\n` +
+      `Layanan: ${booking.service?.name || "-"}\n` +
+      `Tanggal: ${dateStr}\n` +
+      `Jam: ${timeStr}\n` +
+      `Status: ${statusMap[booking.status] || booking.status}\n\n` +
+      `Ketik *menu* untuk kembali.`,
+    newState: "MAIN_MENU",
+  }
+}
+
+// ── Existing booking flow handlers ────────────────────────────
+
 export async function handleSelectService({ businessId, message, context }: HandlerParams): Promise<HandlerResult> {
+  const lower = message.trim().toLowerCase()
+  if (["menu", "balik", "kembali"].includes(lower)) {
+    return await handleIdle({ businessId, waNumber: "", message, state: "IDLE", context: {} })
+  }
+
   const services = await prisma.service.findMany({
     where: { businessId, isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -62,7 +191,7 @@ export async function handleSelectService({ businessId, message, context }: Hand
   const idx = parseInt(message.trim()) - 1
   if (isNaN(idx) || idx < 0 || idx >= services.length) {
     return {
-      reply: "Pilihan tidak valid. Silakan ketik nomor layanan yang tersedia.",
+      reply: "Pilihan tidak valid. Silakan ketik nomor layanan yang tersedia atau ketik *menu*.",
       newState: "SELECT_SERVICE",
       context,
     }
@@ -74,24 +203,48 @@ export async function handleSelectService({ businessId, message, context }: Hand
     .map((d, i) => `${i + 1}. ${formatDate(d)}`)
     .join("\n")
 
+  const interactive = {
+    type: "list",
+    header: { type: "text", text: selected.name },
+    body: { text: `📅 *Pilih Tanggal Booking*\n\nSilakan pilih tanggal yang Anda inginkan untuk layanan yang telah dipilih.\n\nPastikan tanggal yang dipilih sesuai dengan ketersediaan jadwal kami.` },
+    action: {
+      button: "Pilih Tanggal",
+      sections: [
+        {
+          title: "7 Hari Kedepan",
+          rows: days.map((d, i) => ({
+            id: String(i + 1),
+            title: formatDate(d),
+          })),
+        },
+      ],
+    },
+  }
+
   return {
-    reply: `Kamu memilih *${selected.name}* (${selected.durationMinutes} menit).\n\nPilih tanggal:\n\n${dayList}\n\nKetik nomor tanggal.`,
+    reply: `📅 *Pilih Tanggal Booking*\n\nSilakan pilih tanggal yang Anda inginkan untuk layanan yang telah dipilih.\n\nPastikan tanggal yang dipilih sesuai dengan ketersediaan jadwal kami.\n\n${dayList}\n\nKlik tombol *Pilih Tanggal* untuk melihat kalender dan melanjutkan proses booking.`,
     newState: "SELECT_DATE",
     context: {
       serviceId: selected.id,
       serviceName: selected.name,
       serviceDuration: selected.durationMinutes,
     },
+    interactive,
   }
 }
 
 export async function handleSelectDate({ businessId, message, context }: HandlerParams) {
+  const lower = message.trim().toLowerCase()
+  if (["menu", "balik", "kembali"].includes(lower)) {
+    return await handleIdle({ businessId, waNumber: "", message, state: "IDLE", context: {} })
+  }
+
   const idx = parseInt(message.trim()) - 1
   const days = getNext7Days()
 
   if (isNaN(idx) || idx < 0 || idx >= days.length) {
     return {
-      reply: "Pilihan tidak valid. Silakan ketik nomor tanggal yang tersedia.",
+      reply: "Pilihan tidak valid. Silakan ketik nomor tanggal yang tersedia atau ketik *menu*.",
       newState: "SELECT_DATE" as BotState,
       context,
     }
@@ -102,7 +255,7 @@ export async function handleSelectDate({ businessId, message, context }: Handler
 
   if (slots.length === 0) {
     return {
-      reply: "Maaf, tidak ada slot tersedia untuk tanggal tersebut. Silakan pilih tanggal lain.",
+      reply: "Maaf, tidak ada slot tersedia untuk tanggal tersebut. Silakan pilih tanggal lain atau ketik *menu*.",
       newState: "SELECT_DATE" as BotState,
       context,
     }
@@ -112,21 +265,45 @@ export async function handleSelectDate({ businessId, message, context }: Handler
     .map((s, i) => `${i + 1}. ${s.time}`)
     .join("\n")
 
+  const interactive = {
+    type: "list",
+    header: { type: "text", text: formatDate(selectedDate) },
+    body: { text: `⏰ *Pilih Jam Booking*\n\nSilakan pilih jam yang tersedia untuk tanggal yang telah Anda pilih.\n\nJam yang ditampilkan merupakan slot yang masih tersedia.\n\n${slotList}` },
+    action: {
+      button: "Pilih Jam",
+      sections: [
+        {
+          title: "Jam Tersedia",
+          rows: slots.map((s, i) => ({
+            id: String(i + 1),
+            title: s.time,
+          })),
+        },
+      ],
+    },
+  }
+
   return {
-    reply: `Tanggal *${formatDate(selectedDate)}*. Pilih jam:\n\n${slotList}\n\nKetik nomor jam.`,
+    reply: `⏰ *Pilih Jam Booking*\n\nSilakan pilih jam yang tersedia untuk tanggal yang telah Anda pilih.\n\nJam yang ditampilkan merupakan slot yang masih tersedia.\n\n${slotList}\n\nKlik tombol *Pilih Jam* untuk melanjutkan.`,
     newState: "SELECT_TIME" as BotState,
     context: {
       ...context,
       date: selectedDate.toISOString(),
       dateIndex: idx,
     },
+    interactive,
   }
 }
 
 export async function handleSelectTime({ businessId, message, context }: HandlerParams) {
+  const lower = message.trim().toLowerCase()
+  if (["menu", "balik", "kembali"].includes(lower)) {
+    return await handleIdle({ businessId, waNumber: "", message, state: "IDLE", context: {} })
+  }
+
   if (!context.date) {
     return {
-      reply: "Terjadi kesalahan. Silakan mulai lagi dengan mengetik *booking*.",
+      reply: "Terjadi kesalahan. Silakan mulai lagi dengan mengetik *menu*.",
       newState: "IDLE" as BotState,
     }
   }
@@ -137,7 +314,7 @@ export async function handleSelectTime({ businessId, message, context }: Handler
   const idx = parseInt(message.trim()) - 1
   if (isNaN(idx) || idx < 0 || idx >= slots.length) {
     return {
-      reply: "Pilihan tidak valid. Silakan ketik nomor jam yang tersedia.",
+      reply: "Pilihan tidak valid. Silakan ketik nomor jam yang tersedia atau ketik *menu*.",
       newState: "SELECT_TIME" as BotState,
       context,
     }
@@ -154,14 +331,14 @@ export async function handleSelectTime({ businessId, message, context }: Handler
     const remaining = slots.filter((s) => s.time !== selectedSlot.time)
     if (remaining.length === 0) {
       return {
-        reply: "Slot sudah diambil orang lain. Tidak ada slot lain tersedia untuk tanggal ini. Silakan pilih tanggal lain.",
+        reply: "Slot sudah diambil orang lain. Tidak ada slot lain tersedia untuk tanggal ini. Silakan pilih tanggal lain atau ketik *menu*.",
         newState: "SELECT_DATE" as BotState,
         context: { serviceId: context.serviceId, serviceName: context.serviceName, serviceDuration: context.serviceDuration },
       }
     }
     const slotList = remaining.map((s, i) => `${i + 1}. ${s.time}`).join("\n")
     return {
-      reply: `Maaf, slot tersebut sudah diambil. Silakan pilih jam lain:\n\n${slotList}\n\nKetik nomor jam.`,
+      reply: `Maaf, slot tersebut sudah diambil. Silakan pilih jam lain:\n\n${slotList}\n\nKetik nomor jam atau *menu*.`,
       newState: "SELECT_TIME" as BotState,
       context,
     }
@@ -178,6 +355,11 @@ export async function handleSelectTime({ businessId, message, context }: Handler
 }
 
 export async function handleInputName({ businessId, waNumber, message, context }: HandlerParams) {
+  const lower = message.trim().toLowerCase()
+  if (["menu", "balik", "kembali"].includes(lower)) {
+    return await handleIdle({ businessId, waNumber: "", message, state: "IDLE", context: {} })
+  }
+
   const name = message.trim()
   if (name.length < 2 || /^\d+$/.test(name)) {
     return {
@@ -229,14 +411,14 @@ export async function handleConfirm({ businessId, waNumber, message, context }: 
 
   if (isNo) {
     return {
-      reply: "Booking dibatalkan. Jika ingin booking lagi, ketik *booking*.",
+      reply: "Booking dibatalkan. Ketik *menu* untuk kembali.",
       newState: "IDLE" as BotState,
     }
   }
 
   if (!context.serviceId || !context.date || !context.time || !context.customerName) {
     return {
-      reply: "Data booking tidak lengkap. Silakan mulai lagi dengan mengetik *booking*.",
+      reply: "Data booking tidak lengkap. Silakan mulai lagi dengan mengetik *menu*.",
       newState: "IDLE" as BotState,
     }
   }
@@ -253,7 +435,7 @@ export async function handleConfirm({ businessId, waNumber, message, context }: 
 
   if (!stillAvailable) {
     return {
-      reply: "Maaf, slot sudah diambil orang lain. Silakan mulai lagi dengan mengetik *booking*.",
+      reply: "Maaf, slot sudah diambil orang lain. Silakan mulai lagi dengan mengetik *menu*.",
       newState: "IDLE" as BotState,
     }
   }
@@ -298,8 +480,9 @@ export async function handleConfirm({ businessId, waNumber, message, context }: 
       `Kode Booking: *${bookingCode}*\n\n` +
       `Gunakan kode ini untuk cek status atau perubahan.\n` +
       `Kami akan kirimkan reminder sebelum jadwal.\n\n` +
-      `Terima kasih telah menggunakan layanan kami 🙏`,
-    newState: "IDLE" as BotState,
+      `Terima kasih telah menggunakan layanan kami 🙏\n\n` +
+      `Ketik *menu* untuk kembali.`,
+    newState: "MAIN_MENU" as BotState,
   }
 }
 
@@ -308,9 +491,12 @@ export const handlers: Record<
   (params: HandlerParams) => Promise<HandlerResult>
 > = {
   IDLE: handleIdle,
+  MAIN_MENU: handleMainMenu,
+  BOOKING_START: handleBookingStart,
   SELECT_SERVICE: handleSelectService,
   SELECT_DATE: handleSelectDate,
   SELECT_TIME: handleSelectTime,
   INPUT_NAME: handleInputName,
   CONFIRM: handleConfirm,
+  VIEW_BOOKING: handleViewBooking,
 }

@@ -273,4 +273,82 @@ export class ZernioClient {
       return false
     }
   }
+
+  // ── WhatsApp Flows ──────────────────────────────────────────────
+
+  async createFlow(accountId: string, name: string, categories: string[]): Promise<{ flowId: string } | { error: string }> {
+    try {
+      const data = await this.request("POST", "/v1/whatsapp/flows", { accountId, name, categories })
+      return { flowId: data.flow?.id ?? data.id }
+    } catch (err: any) {
+      console.error("[ZERNIO] createFlow error:", err.message)
+      return { error: err.message }
+    }
+  }
+
+  async uploadFlowJson(flowId: string, accountId: string, flowJson: Record<string, unknown>): Promise<true | { error: string }> {
+    try {
+      const data = await this.request("PUT", `/v1/whatsapp/flows/${flowId}/json`, { accountId, flow_json: flowJson })
+      if (data.validation_errors?.length > 0) {
+        const msgs = data.validation_errors.map((ve: any) => ve.message).join("; ")
+        console.error("[ZERNIO] uploadFlowJson validation errors:", msgs)
+        return { error: `Validation errors: ${msgs}` }
+      }
+      return true
+    } catch (err: any) {
+      console.error("[ZERNIO] uploadFlowJson error:", err.message)
+      return { error: err.message }
+    }
+  }
+
+  async publishFlow(flowId: string, accountId: string): Promise<true | { error: string }> {
+    try {
+      const data = await this.request("POST", `/v1/whatsapp/flows/${flowId}/publish`, { accountId })
+      return true
+    } catch (err: any) {
+      console.error("[ZERNIO] publishFlow error:", err.message)
+      return { error: err.message }
+    }
+  }
+
+  async sendFlowMessage(params: {
+    accountId: string
+    to: string
+    flow_id: string
+    flow_cta: string
+    body: string
+    header?: { type: string; text: string }
+    footer?: string
+    flow_action?: "navigate" | "data_exchange"
+    flow_token?: string
+    flow_action_payload?: Record<string, unknown>
+  }): Promise<{ messageId?: string } | { error: string }> {
+    try {
+      const data = await this.request("POST", "/v1/whatsapp/flows/send", params)
+      return { messageId: data.messageId }
+    } catch (err: any) {
+      console.error("[ZERNIO] sendFlowMessage error:", err.message)
+      return { error: err.message }
+    }
+  }
+
+  async deleteFlow(flowId: string, accountId: string): Promise<true | { error: string }> {
+    try {
+      await this.request("DELETE", `/v1/whatsapp/flows/${flowId}`, { accountId })
+      return true
+    } catch (err: any) {
+      console.error("[ZERNIO] deleteFlow error:", err.message)
+      return { error: err.message }
+    }
+  }
+
+  async listFlowResponses(accountId: string, flowId: string): Promise<{ from: string; receivedAt: string; data: Record<string, unknown> }[]> {
+    try {
+      const data = await this.request("GET", `/v1/whatsapp/flow-responses?accountId=${accountId}&flowId=${flowId}`)
+      return data.responses ?? []
+    } catch (err: any) {
+      console.error("[ZERNIO] listFlowResponses error:", err.message)
+      return []
+    }
+  }
 }
