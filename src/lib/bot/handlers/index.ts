@@ -385,13 +385,24 @@ export async function handleInputName({ businessId, waNumber, message, context }
     `Jam: ${time || "-"}\n` +
     `Durasi: ${serviceDuration || "-"} menit\n` +
     `Nama: ${name}\n\n` +
-    `Ketik *1* atau *YA* untuk konfirmasi.\n` +
-    `Ketik *2* atau *TIDAK* untuk batalkan.`
+    `Apakah data di atas sudah benar?`
+
+  const interactive = {
+    type: "button",
+    body: { text: summary },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "YA", title: "Ya" } },
+        { type: "reply", reply: { id: "TIDAK", title: "Tidak" } },
+      ],
+    },
+  }
 
   return {
-    reply: summary,
+    reply: summary + "\n\nKetik *YA* atau *TIDAK*.",
     newState: "CONFIRM" as BotState,
     context: { ...context, customerName: name, customerWa: waNumber },
+    interactive,
   }
 }
 

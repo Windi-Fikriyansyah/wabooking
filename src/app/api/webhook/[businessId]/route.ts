@@ -45,8 +45,8 @@ export async function POST(
 
         const conversationId = msg.conversationId || body.conversationId || ""
         const waNumber = sender.phoneNumber || sender.id || conversation.participantId || body.from || body.waNumber || ""
-        // Interactive list reply: gunakan interactiveId sebagai pesan (nomor urut layanan)
-        const isListReply = metadata.interactiveType === "list_reply"
+        // Interactive reply: gunakan interactiveId sebagai pesan
+        const isListReply = metadata.interactiveType === "list_reply" || metadata.interactiveType === "button_reply"
         const message = isListReply ? (metadata.interactiveId || "") : (msg.text || msg.caption || "")
 
         if (!waNumber || !message) return
@@ -174,11 +174,23 @@ export async function POST(
           if ("error" in flowRes) console.error("[WEBHOOK] Gagal kirim flow:", flowRes.error)
         } else if (result.interactive) {
           if (conversationId && account.id) {
-            await zernio.sendInteractive(conversationId, account.id, result.interactive)
-              .catch((err: Error) => {
-                console.error("[WEBHOOK] Gagal kirim interactive:", err.message)
-                sendReply(result.reply)
-              })
+            const interactive = result.interactive
+            if (interactive.type === "button") {
+              const body = (interactive.body as { text?: string })?.text || result.reply
+              const rawButtons = ((interactive.action as { buttons?: { type: string; reply: { id: string; title: string } }[] })?.buttons || [])
+              const buttons = rawButtons.map((b) => ({ id: b.reply.id, title: b.reply.title }))
+              await zernio.sendButtons(conversationId, account.id, body, buttons)
+                .catch((err: Error) => {
+                  console.error("[WEBHOOK] Gagal kirim buttons:", err.message)
+                  sendReply(result.reply)
+                })
+            } else {
+              await zernio.sendInteractive(conversationId, account.id, interactive)
+                .catch((err: Error) => {
+                  console.error("[WEBHOOK] Gagal kirim interactive:", err.message)
+                  sendReply(result.reply)
+                })
+            }
           } else {
             await sendReply(result.reply)
           }

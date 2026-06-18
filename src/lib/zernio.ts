@@ -191,6 +191,20 @@ export class ZernioClient {
     return true
   }
 
+  async sendButtons(
+    conversationId: string,
+    accountId: string,
+    text: string,
+    buttons: { id: string; title: string }[]
+  ): Promise<boolean> {
+    await this.request("POST", `/v1/inbox/conversations/${conversationId}/messages`, {
+      accountId,
+      message: text,
+      buttons: buttons.map((b) => ({ type: "reply", reply: { id: b.id, title: b.title } })),
+    })
+    return true
+  }
+
   async sendTemplate(
     accountId: string,
     to: string,
