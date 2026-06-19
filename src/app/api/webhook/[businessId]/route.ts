@@ -45,13 +45,18 @@ export async function POST(
 
         const conversationId = msg.conversationId || body.conversationId || ""
         const waNumber = sender.phoneNumber || sender.id || conversation.participantId || body.from || body.waNumber || ""
-        // Interactive reply: gunakan interactiveId sebagai pesan
-        const isListReply = metadata.interactiveType === "list_reply" || metadata.interactiveType === "button_reply"
-        const message = isListReply ? (metadata.interactiveId || "") : (msg.text || msg.caption || "")
+        // Interactive reply: cek berbagai format
+        const interactivePayload = msg.interactive || body.interactive || {}
+        const interactiveType = metadata.interactiveType || interactivePayload?.type || ""
+        const buttonReply = interactivePayload?.button_reply || {}
+        const listReply = interactivePayload?.list_reply || {}
+        const interactiveId = metadata.interactiveId || buttonReply?.id || listReply?.id || ""
+        const isInteractive = interactiveType === "list_reply" || interactiveType === "button_reply" || !!buttonReply?.id || !!listReply?.id
+        const message = isInteractive ? interactiveId : (msg.text || msg.caption || "")
 
         if (!waNumber || !message) return
 
-        console.log("[WEBHOOK] incoming:", JSON.stringify({ conversationId, accountId: account.id, isListReply, message, waNumber }))
+        console.log("[WEBHOOK] incoming:", JSON.stringify({ conversationId, accountId: account.id, isInteractive, message, waNumber }))
 
         const displayName = sender.name || conversation.participantName || body.senderName || body.name || waNumber
         const avatarUrl = sender.avatar || body.avatarUrl || null

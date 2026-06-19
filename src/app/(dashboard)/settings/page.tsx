@@ -1,22 +1,22 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Badge } from "@/components/ui/Badge"
-import { Button } from "@/components/ui/Button"
-import { Card } from "@/components/ui/Card"
-import { Dialog } from "@/components/ui/Dialog"
-import { Input } from "@/components/ui/Input"
-import { Select } from "@/components/ui/Select"
-import { Tabs } from "@/components/ui/Tabs"
-import { Textarea } from "@/components/ui/Textarea"
-import { Toggle } from "@/components/ui/Toggle"
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Dialog } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Tabs } from "@/components/ui/Tabs";
+import { Textarea } from "@/components/ui/Textarea";
+import { Toggle } from "@/components/ui/Toggle";
 
 const TABS = [
   { id: "profil", label: "Profil Bisnis" },
   { id: "integrasi", label: "Integrasi WhatsApp" },
   { id: "bot", label: "Kustomisasi Bot" },
   { id: "notifikasi", label: "Notifikasi" },
-]
+];
 
 const BUSINESS_TYPES = [
   { value: "Salon", label: "Salon" },
@@ -25,13 +25,23 @@ const BUSINESS_TYPES = [
   { value: "Laundry", label: "Laundry" },
   { value: "Bengkel", label: "Bengkel" },
   { value: "Lainnya", label: "Lainnya" },
-]
+];
 
-const AVAILABLE_VARS = ["{nama_pelanggan}", "{layanan}", "{tanggal}", "{jam}", "{nama_bisnis}", "{kode_booking}"]
+const AVAILABLE_VARS = [
+  "{nama_pelanggan}",
+  "{layanan}",
+  "{tanggal}",
+  "{jam}",
+  "{nama_bisnis}",
+  "{kode_booking}",
+];
 
-const DEFAULT_WELCOME = "Halo {nama_pelanggan}! Selamat datang di {nama_bisnis}. Ada yang bisa kami bantu?"
-const DEFAULT_CONFIRM = "Halo {nama_pelanggan}! Booking {layanan} Anda pada {tanggal} pukul {jam} telah dikonfirmasi. Kode booking: {kode_booking}. Terima kasih!"
-const DEFAULT_REMINDER = "Halo {nama_pelanggan}! Ini adalah pengingat untuk booking {layanan} Anda besok, {tanggal} pukul {jam} di {nama_bisnis}. Sampai jumpa!"
+const DEFAULT_WELCOME =
+  "Halo {nama_pelanggan}👋 Selamat datang di {nama_bisnis}. Silakan pilih menu berikut";
+const DEFAULT_CONFIRM =
+  "Halo {nama_pelanggan}! Booking {layanan} Anda pada {tanggal} pukul {jam} telah dikonfirmasi. Kode booking: {kode_booking}. Terima kasih!";
+const DEFAULT_REMINDER =
+  "Halo {nama_pelanggan}! Ini adalah pengingat untuk booking {layanan} Anda besok, {tanggal} pukul {jam} di {nama_bisnis}. Sampai jumpa!";
 
 const PREVIEW_DATA: Record<string, string> = {
   "{nama_pelanggan}": "Budi Santoso",
@@ -39,49 +49,50 @@ const PREVIEW_DATA: Record<string, string> = {
   "{tanggal}": "15 Juni 2026",
   "{jam}": "10:00",
   "{kode_booking}": "BK-001",
-}
+};
 
 type BusinessData = {
-  id: string
-  name: string
-  type: string
-  address: string
-  description: string
-  logoUrl: string
-  waNumber: string
-  waConnected: boolean
-  zernioApiKey: string
-  zernioConnected: boolean
-  welcomeMessage: string
-  confirmTemplate: string
-  reminderTemplate: string
-}
+  id: string;
+  name: string;
+  type: string;
+  address: string;
+  description: string;
+  logoUrl: string;
+  waNumber: string;
+  waConnected: boolean;
+  zernioApiKey: string;
+  zernioConnected: boolean;
+  welcomeMessage: string;
+  confirmTemplate: string;
+  reminderTemplate: string;
+};
 
 type ZernioStatus = {
-  hasApiKey: boolean
-  waConnected: boolean
-  waNumber?: string
-}
+  hasApiKey: boolean;
+  waConnected: boolean;
+  waNumber?: string;
+};
 
 function statusDot(connected: boolean) {
   return (
     <span className="flex items-center gap-2 text-sm font-medium">
       <span
-        className={`inline-block h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"
-          }`}
+        className={`inline-block h-2.5 w-2.5 rounded-full ${
+          connected ? "bg-emerald-500" : "bg-red-500"
+        }`}
       />
       {connected ? "Terhubung" : "Tidak Terhubung"}
     </span>
-  )
+  );
 }
 
 function resolvePreview(text: string, businessName: string) {
-  let preview = text
+  let preview = text;
   for (const [key, value] of Object.entries(PREVIEW_DATA)) {
-    preview = preview.replaceAll(key, value)
+    preview = preview.replaceAll(key, value);
   }
-  preview = preview.replaceAll("{nama_bisnis}", businessName)
-  return preview
+  preview = preview.replaceAll("{nama_bisnis}", businessName);
+  return preview;
 }
 
 function TemplateField({
@@ -91,24 +102,24 @@ function TemplateField({
   onChange,
   textareaRef,
 }: {
-  label: string
-  description: string
-  value: string
-  onChange: (v: string) => void
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  label: string;
+  description: string;
+  value: string;
+  onChange: (v: string) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
 }) {
   const insertVar = (v: string) => {
-    const el = textareaRef.current
-    if (!el) return
-    const start = el.selectionStart
-    const end = el.selectionEnd
-    const newVal = value.slice(0, start) + v + value.slice(end)
-    onChange(newVal)
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const newVal = value.slice(0, start) + v + value.slice(end);
+    onChange(newVal);
     requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(start + v.length, start + v.length)
-    })
-  }
+      el.focus();
+      el.setSelectionRange(start + v.length, start + v.length);
+    });
+  };
 
   return (
     <div className="space-y-2">
@@ -137,34 +148,37 @@ function TemplateField({
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profil")
-  const [business, setBusiness] = useState<BusinessData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("profil");
+  const [business, setBusiness] = useState<BusinessData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     async function init() {
       try {
-        const res = await fetch("/api/business")
-        if (!res.ok) throw new Error("Gagal memuat data bisnis")
-        const data = await res.json()
-        const biz = Array.isArray(data) ? data[0] : data
-        if (!biz?.id) throw new Error("Belum ada bisnis")
-        if (!cancelled) setBusiness(biz)
+        const res = await fetch("/api/business");
+        if (!res.ok) throw new Error("Gagal memuat data bisnis");
+        const data = await res.json();
+        const biz = Array.isArray(data) ? data[0] : data;
+        if (!biz?.id) throw new Error("Belum ada bisnis");
+        if (!cancelled) setBusiness(biz);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Terjadi kesalahan")
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Terjadi kesalahan");
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoading(false);
       }
     }
-    init()
-    return () => { cancelled = true }
-  }, [])
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -172,18 +186,22 @@ export default function SettingsPage() {
         <div className="h-8 w-40 animate-pulse rounded bg-zinc-200" />
         <div className="h-64 animate-pulse rounded-xl bg-zinc-200" />
       </div>
-    )
+    );
   }
 
   if (error || !business) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <p className="text-zinc-500">{error || "Belum ada bisnis"}</p>
-        <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => window.location.reload()}
+        >
           Coba Lagi
         </Button>
       </div>
-    )
+    );
   }
 
   return (
@@ -192,79 +210,107 @@ export default function SettingsPage() {
 
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
-      {activeTab === "profil" && <ProfilTab business={business} onUpdate={setBusiness} />}
-      {activeTab === "integrasi" && <IntegrasiTab business={business} onUpdate={setBusiness} />}
-      {activeTab === "bot" && <BotTab business={business} onUpdate={setBusiness} />}
+      {activeTab === "profil" && (
+        <ProfilTab business={business} onUpdate={setBusiness} />
+      )}
+      {activeTab === "integrasi" && (
+        <IntegrasiTab business={business} onUpdate={setBusiness} />
+      )}
+      {activeTab === "bot" && (
+        <BotTab business={business} onUpdate={setBusiness} />
+      )}
       {activeTab === "notifikasi" && <NotifikasiTab />}
     </div>
-  )
+  );
 }
 
 function proxyImageUrl(url: string) {
-  if (!url) return url
+  if (!url) return url;
   if (url.startsWith("https://") && url.includes(".r2.dev")) {
-    const match = url.match(/\.r2\.dev\/(.+)/)
-    if (match) return `/api/images/${match[1]}`
+    const match = url.match(/\.r2\.dev\/(.+)/);
+    if (match) return `/api/images/${match[1]}`;
   }
-  return url
+  return url;
 }
 
-function ProfilTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: BusinessData) => void }) {
-  const [name, setName] = useState(business.name)
-  const [type, setType] = useState(business.type)
-  const [address, setAddress] = useState(business.address)
-  const [description, setDescription] = useState(business.description)
-  const [logoUrl, setLogoUrl] = useState(business.logoUrl)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+function ProfilTab({
+  business,
+  onUpdate,
+}: {
+  business: BusinessData;
+  onUpdate: (b: BusinessData) => void;
+}) {
+  const [name, setName] = useState(business.name);
+  const [type, setType] = useState(business.type);
+  const [address, setAddress] = useState(business.address);
+  const [description, setDescription] = useState(business.description);
+  const [logoUrl, setLogoUrl] = useState(business.logoUrl);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setLogoFile(file)
-    const reader = new FileReader()
-    reader.onload = (ev) => setLogoPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
-  }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const save = async () => {
-    setSaving(true)
-    setMessage(null)
+    setSaving(true);
+    setMessage(null);
     try {
-      let finalLogoUrl = logoUrl
+      let finalLogoUrl = logoUrl;
       if (logoFile) {
-        const fd = new FormData()
-        fd.append("file", logoFile)
+        const fd = new FormData();
+        fd.append("file", logoFile);
         if (logoUrl && !logoUrl.startsWith("data:")) {
-          fd.append("oldUrl", logoUrl)
+          fd.append("oldUrl", logoUrl);
         }
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: fd })
-        if (!uploadRes.ok) throw new Error("Gagal mengunggah logo")
-        const uploadData = await uploadRes.json()
-        finalLogoUrl = uploadData.url
-        setLogoPreview(null)
-        setLogoFile(null)
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: fd,
+        });
+        if (!uploadRes.ok) throw new Error("Gagal mengunggah logo");
+        const uploadData = await uploadRes.json();
+        finalLogoUrl = uploadData.url;
+        setLogoPreview(null);
+        setLogoFile(null);
       }
 
       const res = await fetch("/api/business", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: business.id, name, type, address, description, logoUrl: finalLogoUrl }),
-      })
-      if (!res.ok) throw new Error("Gagal menyimpan")
-      const updated = await res.json()
-      onUpdate({ ...business, ...updated, logoUrl: finalLogoUrl })
-      setLogoUrl(finalLogoUrl)
-      setMessage({ type: "success", text: "Data bisnis berhasil disimpan" })
+        body: JSON.stringify({
+          id: business.id,
+          name,
+          type,
+          address,
+          description,
+          logoUrl: finalLogoUrl,
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan");
+      const updated = await res.json();
+      onUpdate({ ...business, ...updated, logoUrl: finalLogoUrl });
+      setLogoUrl(finalLogoUrl);
+      setMessage({ type: "success", text: "Data bisnis berhasil disimpan" });
     } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Terjadi kesalahan" })
+      setMessage({
+        type: "error",
+        text: e instanceof Error ? e.message : "Terjadi kesalahan",
+      });
     } finally {
-      setSaving(false)
-      setTimeout(() => setMessage(null), 3000)
+      setSaving(false);
+      setTimeout(() => setMessage(null), 3000);
     }
-  }
+  };
 
   return (
     <Card>
@@ -272,7 +318,7 @@ function ProfilTab({ business, onUpdate }: { business: BusinessData; onUpdate: (
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="h-16 w-16 overflow-hidden rounded-full border border-zinc-200 bg-zinc-100">
-              {(logoPreview || logoUrl) ? (
+              {logoPreview || logoUrl ? (
                 <img
                   src={logoPreview || proxyImageUrl(logoUrl)}
                   alt="Logo"
@@ -280,8 +326,18 @@ function ProfilTab({ business, onUpdate }: { business: BusinessData; onUpdate: (
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-2xl text-zinc-300">
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <svg
+                    className="h-8 w-8"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
                   </svg>
                 </div>
               )}
@@ -290,264 +346,369 @@ function ProfilTab({ business, onUpdate }: { business: BusinessData; onUpdate: (
           <div>
             <label className="cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
               Pilih Logo
-              <input type="file" accept="image/*" onChange={handleLogo} className="hidden" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleLogo}
+                className="hidden"
+              />
             </label>
-            <p className="mt-1 text-xs text-zinc-400">Format: JPG, PNG. Maks 2 MB</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              Format: JPG, PNG. Maks 2 MB
+            </p>
           </div>
         </div>
 
-        <Input label="Nama Bisnis" value={name} onChange={(e) => setName(e.target.value)} required />
-        <Select label="Jenis Bisnis" options={BUSINESS_TYPES} value={type} onChange={(e) => setType(e.target.value)} />
-        <Textarea label="Alamat" value={address} onChange={(e) => setAddress(e.target.value)} className="min-h-[80px]" />
-        <Textarea label="Deskripsi" value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[80px]" />
+        <Input
+          label="Nama Bisnis"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Select
+          label="Jenis Bisnis"
+          options={BUSINESS_TYPES}
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        />
+        <Textarea
+          label="Alamat"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          className="min-h-[80px]"
+        />
+        <Textarea
+          label="Deskripsi"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="min-h-[80px]"
+        />
 
         {message && (
-          <p className={`text-sm ${message.type === "success" ? "text-emerald-600" : "text-red-500"}`}>
+          <p
+            className={`text-sm ${message.type === "success" ? "text-emerald-600" : "text-red-500"}`}
+          >
             {message.text}
           </p>
         )}
 
-        <Button onClick={save} loading={saving}>Simpan</Button>
+        <Button onClick={save} loading={saving}>
+          Simpan
+        </Button>
       </div>
     </Card>
-  )
+  );
 }
 
-function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: BusinessData) => void }) {
-  const [status, setStatus] = useState<ZernioStatus | null>(null)
-  const [checking, setChecking] = useState(true)
+function IntegrasiTab({
+  business,
+  onUpdate,
+}: {
+  business: BusinessData;
+  onUpdate: (b: BusinessData) => void;
+}) {
+  const [status, setStatus] = useState<ZernioStatus | null>(null);
+  const [checking, setChecking] = useState(true);
 
-  const [apiKey, setApiKey] = useState("")
-  const [showKey, setShowKey] = useState(false)
-  const [connecting, setConnecting] = useState(false)
-  const [connError, setConnError] = useState<string | null>(null)
-  const [connSuccess, setConnSuccess] = useState<string | null>(null)
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connError, setConnError] = useState<string | null>(null);
+  const [connSuccess, setConnSuccess] = useState<string | null>(null);
 
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
-  const [disconnecting, setDisconnecting] = useState(false)
-  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
-  const [guideOpen, setGuideOpen] = useState(false)
-  const [waConnecting, setWaConnecting] = useState(false)
-  const [waConnectError, setWaConnectError] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<{ ok: boolean; msg: string } | null>(null)
-  const [waAccount, setWaAccount] = useState<{ name: string; username: string; id: string } | null>(null)
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    msg: string;
+  } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [waConnecting, setWaConnecting] = useState(false);
+  const [waConnectError, setWaConnectError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    ok: boolean;
+    msg: string;
+  } | null>(null);
+  const [waAccount, setWaAccount] = useState<{
+    name: string;
+    username: string;
+    id: string;
+  } | null>(null);
 
   const checkStatus = useCallback(async () => {
-    setChecking(true)
+    setChecking(true);
     try {
-      const res = await fetch(`/api/zernio/status?businessId=${business.id}`)
-      if (!res.ok) throw new Error("Gagal cek status")
-      const data = await res.json()
+      const res = await fetch(`/api/zernio/status?businessId=${business.id}`);
+      if (!res.ok) throw new Error("Gagal cek status");
+      const data = await res.json();
       setStatus({
         hasApiKey: data.hasApiKey ?? !!business.zernioApiKey,
         waConnected: data.connected,
         waNumber: data.waNumber,
-      })
+      });
     } catch {
-      setStatus({ hasApiKey: !!business.zernioApiKey, waConnected: false })
+      setStatus({ hasApiKey: !!business.zernioApiKey, waConnected: false });
     } finally {
-      setChecking(false)
+      setChecking(false);
     }
-  }, [business.id, business.zernioApiKey])
+  }, [business.id, business.zernioApiKey]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const zernioParam = params.get("zernio")
+    const params = new URLSearchParams(window.location.search);
+    const zernioParam = params.get("zernio");
 
     if (zernioParam === "connected") {
       // Fetch connected accounts directly from Zernio
-      ; (async () => {
+      (async () => {
         try {
-          const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`)
+          const res = await fetch(
+            `/api/zernio/accounts?businessId=${business.id}`,
+          );
           if (res.ok) {
-            const data = await res.json()
+            const data = await res.json();
             const waAccount = Array.isArray(data.accounts)
               ? data.accounts.find(
-                (a: any) =>
-                  (a.platform === "whatsapp" || a.platform === "wa") &&
-                  a.status === "connected"
-              )
-              : null
-            const number = waAccount?.phone || waAccount?.username || params.get("wa") || ""
-            setConnSuccess("WhatsApp berhasil terhubung!")
-            setWaAccount(waAccount ? { name: waAccount.name || waAccount.username || "", username: number, id: waAccount.id } : null)
+                  (a: any) =>
+                    (a.platform === "whatsapp" || a.platform === "wa") &&
+                    a.status === "connected",
+                )
+              : null;
+            const number =
+              waAccount?.phone || waAccount?.username || params.get("wa") || "";
+            setConnSuccess("WhatsApp berhasil terhubung!");
+            setWaAccount(
+              waAccount
+                ? {
+                    name: waAccount.name || waAccount.username || "",
+                    username: number,
+                    id: waAccount.id,
+                  }
+                : null,
+            );
             onUpdate({
               ...business,
               zernioConnected: true,
               waNumber: number,
               waConnected: true,
-            })
-            setStatus({ hasApiKey: true, waConnected: true, waNumber: number })
+            });
+            setStatus({ hasApiKey: true, waConnected: true, waNumber: number });
           }
         } catch {
-          setConnSuccess("WhatsApp berhasil terhubung!")
-          setStatus({ hasApiKey: true, waConnected: true, waNumber: params.get("wa") || "" })
-          setWaAccount({ name: params.get("wa") || "", username: params.get("wa") || "", id: "" })
-          onUpdate({ ...business, zernioConnected: true, waConnected: true })
+          setConnSuccess("WhatsApp berhasil terhubung!");
+          setStatus({
+            hasApiKey: true,
+            waConnected: true,
+            waNumber: params.get("wa") || "",
+          });
+          setWaAccount({
+            name: params.get("wa") || "",
+            username: params.get("wa") || "",
+            id: "",
+          });
+          onUpdate({ ...business, zernioConnected: true, waConnected: true });
         }
-      })()
-      window.history.replaceState({}, "", "/settings")
-      setTimeout(() => setConnSuccess(null), 5000)
+      })();
+      window.history.replaceState({}, "", "/settings");
+      setTimeout(() => setConnSuccess(null), 5000);
     } else if (zernioParam === "error") {
-      setConnError("Gagal menghubungkan WhatsApp. Silakan coba lagi.")
-      window.history.replaceState({}, "", "/settings")
+      setConnError("Gagal menghubungkan WhatsApp. Silakan coba lagi.");
+      window.history.replaceState({}, "", "/settings");
     } else {
-      checkStatus()
+      checkStatus();
     }
-  }, [checkStatus])
+  }, [checkStatus]);
 
   const connect = async () => {
-    if (!apiKey.trim()) { setConnError("API Key wajib diisi"); return }
-    setConnecting(true)
-    setConnError(null)
-    setConnSuccess(null)
+    if (!apiKey.trim()) {
+      setConnError("API Key wajib diisi");
+      return;
+    }
+    setConnecting(true);
+    setConnError(null);
+    setConnSuccess(null);
     try {
       const res = await fetch("/api/zernio/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessId: business.id, apiKey: apiKey.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "Koneksi gagal")
+        body: JSON.stringify({
+          businessId: business.id,
+          apiKey: apiKey.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success)
+        throw new Error(data.error || "Koneksi gagal");
 
-      setConnSuccess(data.message || "Berhasil tersimpan")
+      setConnSuccess(data.message || "Berhasil tersimpan");
       onUpdate({
         ...business,
         zernioApiKey: apiKey.trim(),
         zernioConnected: data.connected,
         waNumber: data.waNumber || business.waNumber,
         waConnected: data.connected,
-      })
-      setStatus({ hasApiKey: true, waConnected: data.connected, waNumber: data.waNumber })
-      setApiKey("")
-      setTimeout(() => setConnSuccess(null), 4000)
+      });
+      setStatus({
+        hasApiKey: true,
+        waConnected: data.connected,
+        waNumber: data.waNumber,
+      });
+      setApiKey("");
+      setTimeout(() => setConnSuccess(null), 4000);
     } catch (e) {
-      setConnError(e instanceof Error ? e.message : "Terjadi kesalahan")
+      setConnError(e instanceof Error ? e.message : "Terjadi kesalahan");
     } finally {
-      setConnecting(false)
+      setConnecting(false);
     }
-  }
+  };
 
   const connectWhatsApp = async () => {
-    setWaConnecting(true)
-    setWaConnectError(null)
+    setWaConnecting(true);
+    setWaConnectError(null);
     try {
       const res = await fetch("/api/zernio/connect-whatsapp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessId: business.id }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.authUrl) throw new Error(data.error || "Gagal mendapatkan tautan")
+      });
+      const data = await res.json();
+      if (!res.ok || !data.authUrl)
+        throw new Error(data.error || "Gagal mendapatkan tautan");
 
-      window.open(data.authUrl, "_blank", "noopener,noreferrer")
+      window.open(data.authUrl, "_blank", "noopener,noreferrer");
     } catch (e) {
-      setWaConnectError(e instanceof Error ? e.message : "Terjadi kesalahan")
+      setWaConnectError(e instanceof Error ? e.message : "Terjadi kesalahan");
     } finally {
-      setWaConnecting(false)
+      setWaConnecting(false);
     }
-  }
+  };
 
   const testConnection = async () => {
-    setTesting(true)
-    setTestResult(null)
+    setTesting(true);
+    setTestResult(null);
     try {
       const res = await fetch("/api/zernio/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessId: business.id }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       setTestResult({
         ok: res.ok,
-        msg: data.connected ? "WhatsApp terhubung ✓" : data.error || "WhatsApp belum terhubung",
-      })
+        msg: data.connected
+          ? "WhatsApp terhubung ✓"
+          : data.error || "WhatsApp belum terhubung",
+      });
     } catch {
-      setTestResult({ ok: false, msg: "Gagal menghubungi Zernio" })
+      setTestResult({ ok: false, msg: "Gagal menghubungi Zernio" });
     } finally {
-      setTesting(false)
-      setTimeout(() => setTestResult(null), 3000)
+      setTesting(false);
+      setTimeout(() => setTestResult(null), 3000);
     }
-  }
+  };
 
   const syncAccounts = async () => {
-    setSyncing(true)
-    setSyncResult(null)
+    setSyncing(true);
+    setSyncResult(null);
     try {
-      const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`)
-      if (!res.ok) throw new Error("Gagal sync")
-      const data = await res.json()
+      const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`);
+      if (!res.ok) throw new Error("Gagal sync");
+      const data = await res.json();
       const waAccount = Array.isArray(data.accounts)
         ? data.accounts.find(
-          (a: any) =>
-            (a.platform === "whatsapp" || a.platform === "wa") &&
-            a.status === "connected"
-        )
-        : null
+            (a: any) =>
+              (a.platform === "whatsapp" || a.platform === "wa") &&
+              a.status === "connected",
+          )
+        : null;
       if (waAccount) {
-        const number = waAccount.phone || waAccount.username || ""
-        setWaAccount({ name: waAccount.name || waAccount.username || "", username: number, id: waAccount.id })
-        onUpdate({ ...business, zernioConnected: true, waNumber: number, waConnected: true })
-        setStatus({ hasApiKey: true, waConnected: true, waNumber: number })
-        setSyncResult({ ok: true, msg: `WhatsApp terhubung: ${number}` })
+        const number = waAccount.phone || waAccount.username || "";
+        setWaAccount({
+          name: waAccount.name || waAccount.username || "",
+          username: number,
+          id: waAccount.id,
+        });
+        onUpdate({
+          ...business,
+          zernioConnected: true,
+          waNumber: number,
+          waConnected: true,
+        });
+        setStatus({ hasApiKey: true, waConnected: true, waNumber: number });
+        setSyncResult({ ok: true, msg: `WhatsApp terhubung: ${number}` });
       } else {
-        setWaAccount(null)
-        setStatus({ hasApiKey: true, waConnected: false })
-        onUpdate({ ...business, zernioConnected: false, waConnected: false })
-        setSyncResult({ ok: false, msg: "Belum ada akun WhatsApp terhubung di Zernio" })
+        setWaAccount(null);
+        setStatus({ hasApiKey: true, waConnected: false });
+        onUpdate({ ...business, zernioConnected: false, waConnected: false });
+        setSyncResult({
+          ok: false,
+          msg: "Belum ada akun WhatsApp terhubung di Zernio",
+        });
       }
     } catch {
-      setSyncResult({ ok: false, msg: "Gagal sync dengan Zernio" })
+      setSyncResult({ ok: false, msg: "Gagal sync dengan Zernio" });
     } finally {
-      setSyncing(false)
-      setTimeout(() => setSyncResult(null), 5000)
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 5000);
     }
-  }
+  };
 
   const disconnect = async () => {
-    setDisconnecting(true)
+    setDisconnecting(true);
     try {
       const res = await fetch("/api/zernio/disconnect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessId: business.id }),
-      })
-      if (!res.ok) throw new Error("Gagal memutuskan koneksi")
-      onUpdate({ ...business, zernioConnected: false, zernioApiKey: "", waConnected: false })
-      setStatus({ hasApiKey: false, waConnected: false })
-      setWaAccount(null)
-      setShowDisconnectConfirm(false)
+      });
+      if (!res.ok) throw new Error("Gagal memutuskan koneksi");
+      onUpdate({
+        ...business,
+        zernioConnected: false,
+        zernioApiKey: "",
+        waConnected: false,
+      });
+      setStatus({ hasApiKey: false, waConnected: false });
+      setWaAccount(null);
+      setShowDisconnectConfirm(false);
     } catch {
-      setConnError("Gagal memutuskan koneksi")
+      setConnError("Gagal memutuskan koneksi");
     } finally {
-      setDisconnecting(false)
+      setDisconnecting(false);
     }
-  }
+  };
 
   const disconnectWA = async () => {
-    if (!waAccount?.id) return
-    setDisconnecting(true)
+    if (!waAccount?.id) return;
+    setDisconnecting(true);
     try {
       const res = await fetch("/api/zernio/disconnect-wa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessId: business.id, accountId: waAccount.id }),
-      })
-      if (!res.ok) throw new Error("Gagal memutuskan WhatsApp")
-      setWaAccount(null)
-      setStatus({ hasApiKey: true, waConnected: false })
-      onUpdate({ ...business, zernioConnected: false, waNumber: "", waConnected: false })
+        body: JSON.stringify({
+          businessId: business.id,
+          accountId: waAccount.id,
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal memutuskan WhatsApp");
+      setWaAccount(null);
+      setStatus({ hasApiKey: true, waConnected: false });
+      onUpdate({
+        ...business,
+        zernioConnected: false,
+        waNumber: "",
+        waConnected: false,
+      });
     } catch {
-      setConnError("Gagal memutuskan WhatsApp")
+      setConnError("Gagal memutuskan WhatsApp");
     } finally {
-      setDisconnecting(false)
+      setDisconnecting(false);
     }
-  }
+  };
 
-  const hasApiKey = status?.hasApiKey ?? !!business.zernioApiKey
-  const waConnected = status?.waConnected ?? business.zernioConnected
+  const hasApiKey = status?.hasApiKey ?? !!business.zernioApiKey;
+  const waConnected = status?.waConnected ?? business.zernioConnected;
 
   return (
     <div className="space-y-4">
@@ -558,12 +719,18 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#25D366] shadow-sm">
-                  <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <svg
+                    className="h-6 w-6 text-white"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-zinc-800">WhatsApp</p>
+                  <p className="text-sm font-semibold text-zinc-800">
+                    WhatsApp
+                  </p>
                   <span className="mt-0.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                     connected
                   </span>
@@ -574,7 +741,13 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                 className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
                 title="Info"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 16v-4m0-4h.01" />
                 </svg>
@@ -594,25 +767,34 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                 <button
                   type="button"
                   onClick={() => {
-                    const text = waAccount?.username || status?.waNumber || ""
-                    if (text) navigator.clipboard.writeText(text)
+                    const text = waAccount?.username || status?.waNumber || "";
+                    if (text) navigator.clipboard.writeText(text);
                   }}
                   className="ml-0.5 flex-shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors"
                   title="Salin nomor"
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                     <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                   </svg>
                 </button>
               </div>
               <p className="mt-0.5 text-xs text-zinc-400">
-                {new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}
+                {new Date().toLocaleDateString("en-US", {
+                  month: "numeric",
+                  day: "numeric",
+                  year: "numeric",
+                })}
               </p>
             </div>
 
             {/* Default indicator */}
-
 
             {/* Action buttons */}
             <div className="mt-4 flex gap-2 border-t border-zinc-100 pt-4">
@@ -644,37 +826,51 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
           <button
             type="button"
             onClick={async () => {
-              setDisconnecting(true)
+              setDisconnecting(true);
               try {
-                let accId = waAccount?.id
+                let accId = waAccount?.id;
                 if (!accId) {
-                  const acctRes = await fetch(`/api/zernio/accounts?businessId=${business.id}`)
+                  const acctRes = await fetch(
+                    `/api/zernio/accounts?businessId=${business.id}`,
+                  );
                   if (acctRes.ok) {
-                    const acctData = await acctRes.json()
+                    const acctData = await acctRes.json();
                     const wa = Array.isArray(acctData.accounts)
                       ? acctData.accounts.find(
                           (a: any) =>
-                            (a.platform === "whatsapp" || a.platform === "wa") &&
-                            a.status === "connected"
+                            (a.platform === "whatsapp" ||
+                              a.platform === "wa") &&
+                            a.status === "connected",
                         )
-                      : null
-                    accId = wa?.id || status?.waNumber || business.waNumber
+                      : null;
+                    accId = wa?.id || status?.waNumber || business.waNumber;
                   }
                 }
-                if (!accId) return
+                if (!accId) return;
                 const res = await fetch("/api/zernio/disconnect-wa", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ businessId: business.id, accountId: accId }),
-                })
-                if (!res.ok) throw new Error("Gagal disconnect")
-                setWaAccount(null)
-                setStatus({ hasApiKey: !!status?.hasApiKey, waConnected: false })
-                onUpdate({ ...business, zernioConnected: false, waNumber: "", waConnected: false })
+                  body: JSON.stringify({
+                    businessId: business.id,
+                    accountId: accId,
+                  }),
+                });
+                if (!res.ok) throw new Error("Gagal disconnect");
+                setWaAccount(null);
+                setStatus({
+                  hasApiKey: !!status?.hasApiKey,
+                  waConnected: false,
+                });
+                onUpdate({
+                  ...business,
+                  zernioConnected: false,
+                  waNumber: "",
+                  waConnected: false,
+                });
               } catch {
-                setConnError("Gagal memutuskan WhatsApp")
+                setConnError("Gagal memutuskan WhatsApp");
               } finally {
-                setDisconnecting(false)
+                setDisconnecting(false);
               }
             }}
             disabled={disconnecting}
@@ -686,7 +882,9 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
       ) : (
         <Card>
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">Status Koneksi</h2>
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
+              Status Koneksi
+            </h2>
             {checking ? (
               <div className="h-5 w-32 animate-pulse rounded bg-zinc-200" />
             ) : hasApiKey ? (
@@ -695,8 +893,7 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                 {waConnected && status?.waNumber ? (
                   <div className="space-y-1 text-sm">
                     <p className="text-zinc-600">
-                      Nomor WA:{" "}
-                      <Badge variant="green">{status.waNumber}</Badge>
+                      Nomor WA: <Badge variant="green">{status.waNumber}</Badge>
                     </p>
                   </div>
                 ) : (
@@ -722,10 +919,18 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                     Hubungkan WhatsApp
                   </Button>
                 )}
-                <Button variant="secondary" onClick={syncAccounts} loading={syncing}>
+                <Button
+                  variant="secondary"
+                  onClick={syncAccounts}
+                  loading={syncing}
+                >
                   Sync
                 </Button>
-                <Button variant="secondary" onClick={testConnection} loading={testing}>
+                <Button
+                  variant="secondary"
+                  onClick={testConnection}
+                  loading={testing}
+                >
                   Test Koneksi
                 </Button>
                 {!waAccount && (
@@ -738,14 +943,20 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                   </Button>
                 )}
               </div>
-              {waConnectError && <p className="text-sm text-red-500">{waConnectError}</p>}
+              {waConnectError && (
+                <p className="text-sm text-red-500">{waConnectError}</p>
+              )}
               {syncResult && (
-                <p className={`text-sm ${syncResult.ok ? "text-emerald-600" : "text-amber-600"}`}>
+                <p
+                  className={`text-sm ${syncResult.ok ? "text-emerald-600" : "text-amber-600"}`}
+                >
                   {syncResult.msg}
                 </p>
               )}
               {testResult && (
-                <p className={`text-sm ${testResult.ok ? "text-emerald-600" : "text-red-500"}`}>
+                <p
+                  className={`text-sm ${testResult.ok ? "text-emerald-600" : "text-red-500"}`}
+                >
                   {testResult.msg}
                 </p>
               )}
@@ -755,8 +966,9 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
             <Card>
               <div className="space-y-2 text-sm text-zinc-600">
                 <p>
-                  Klik <strong>Hubungkan WhatsApp</strong> untuk membuka halaman otorisasi Zernio.
-                  Setelah menyelesaikan otorisasi, Anda akan diarahkan kembali ke halaman ini.
+                  Klik <strong>Hubungkan WhatsApp</strong> untuk membuka halaman
+                  otorisasi Zernio. Setelah menyelesaikan otorisasi, Anda akan
+                  diarahkan kembali ke halaman ini.
                 </p>
                 <p className="text-xs text-zinc-400">
                   Pastikan Anda sudah login ke akun Zernio di browser yang sama.
@@ -768,7 +980,9 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
       ) : (
         <Card>
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">Hubungkan Zernio</h2>
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
+              Hubungkan Zernio
+            </h2>
             <div className="relative">
               <Input
                 label="Zernio API Key"
@@ -783,19 +997,46 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
                 className="absolute right-3 top-[38px] text-zinc-400 hover:text-zinc-600"
               >
                 {showKey ? (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                    />
                   </svg>
                 ) : (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   </svg>
                 )}
               </button>
             </div>
             {connError && <p className="text-sm text-red-500">{connError}</p>}
-            {connSuccess && <p className="text-sm text-emerald-600">{connSuccess}</p>}
+            {connSuccess && (
+              <p className="text-sm text-emerald-600">{connSuccess}</p>
+            )}
             <Button onClick={connect} loading={connecting}>
               Simpan &amp; Hubungkan
             </Button>
@@ -812,52 +1053,113 @@ function IntegrasiTab({ business, onUpdate }: { business: BusinessData; onUpdate
           Panduan Koneksi Zernio
           <svg
             className={`h-4 w-4 transition-transform ${guideOpen ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </button>
         {guideOpen && (
           <ol className="mt-4 space-y-2 text-sm text-zinc-600 list-decimal pl-5">
-            <li>Daftar akun di <a href="https://zernio.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">zernio.com</a> dan dapatkan API Key dari Settings → API Keys</li>
-            <li>Masukkan API Key di atas dan klik <strong>Simpan &amp; Hubungkan</strong></li>
-            <li>Setelah API Key tersimpan, klik <strong>Hubungkan WhatsApp</strong> untuk membuka halaman otorisasi Zernio</li>
-            <li>Login ke akun Zernio (jika belum) dan izinkan akses ke WhatsApp</li>
-            <li>Setelah otorisasi selesai, Anda akan diarahkan kembali ke halaman ini</li>
+            <li>
+              Daftar akun di{" "}
+              <a
+                href="https://zernio.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                zernio.com
+              </a>{" "}
+              dan dapatkan API Key dari Settings → API Keys
+            </li>
+            <li>
+              Masukkan API Key di atas dan klik{" "}
+              <strong>Simpan &amp; Hubungkan</strong>
+            </li>
+            <li>
+              Setelah API Key tersimpan, klik{" "}
+              <strong>Hubungkan WhatsApp</strong> untuk membuka halaman
+              otorisasi Zernio
+            </li>
+            <li>
+              Login ke akun Zernio (jika belum) dan izinkan akses ke WhatsApp
+            </li>
+            <li>
+              Setelah otorisasi selesai, Anda akan diarahkan kembali ke halaman
+              ini
+            </li>
           </ol>
         )}
       </Card>
 
-      <Dialog open={showDisconnectConfirm} onClose={() => setShowDisconnectConfirm(false)} title="Konfirmasi">
-        <p className="text-sm text-zinc-600">Apakah Anda yakin ingin memutuskan koneksi Zernio?</p>
+      <Dialog
+        open={showDisconnectConfirm}
+        onClose={() => setShowDisconnectConfirm(false)}
+        title="Konfirmasi"
+      >
+        <p className="text-sm text-zinc-600">
+          Apakah Anda yakin ingin memutuskan koneksi Zernio?
+        </p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setShowDisconnectConfirm(false)}>Batal</Button>
-          <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={disconnect} loading={disconnecting}>
+          <Button
+            variant="secondary"
+            onClick={() => setShowDisconnectConfirm(false)}
+          >
+            Batal
+          </Button>
+          <Button
+            variant="outline"
+            className="border-red-300 text-red-600 hover:bg-red-50"
+            onClick={disconnect}
+            loading={disconnecting}
+          >
             Putuskan
           </Button>
         </div>
       </Dialog>
     </div>
-  )
+  );
 }
 
-function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: BusinessData) => void }) {
-  const [welcome, setWelcome] = useState(business.welcomeMessage || DEFAULT_WELCOME)
-  const [confirm, setConfirm] = useState(business.confirmTemplate || DEFAULT_CONFIRM)
-  const [reminder, setReminder] = useState(business.reminderTemplate || DEFAULT_REMINDER)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
-  const [previewText, setPreviewText] = useState<string | null>(null)
-  const [previewLabel, setPreviewLabel] = useState("")
-  const [previewOpen, setPreviewOpen] = useState(false)
+function BotTab({
+  business,
+  onUpdate,
+}: {
+  business: BusinessData;
+  onUpdate: (b: BusinessData) => void;
+}) {
+  const [welcome, setWelcome] = useState(
+    business.welcomeMessage || DEFAULT_WELCOME,
+  );
+  const [confirm, setConfirm] = useState(
+    business.confirmTemplate || DEFAULT_CONFIRM,
+  );
+  const [reminder, setReminder] = useState(
+    business.reminderTemplate || DEFAULT_REMINDER,
+  );
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewLabel, setPreviewLabel] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
 
-  const welcomeRef = useRef<HTMLTextAreaElement | null>(null)
-  const confirmRef = useRef<HTMLTextAreaElement | null>(null)
-  const reminderRef = useRef<HTMLTextAreaElement | null>(null)
+  const welcomeRef = useRef<HTMLTextAreaElement | null>(null);
+  const confirmRef = useRef<HTMLTextAreaElement | null>(null);
+  const reminderRef = useRef<HTMLTextAreaElement | null>(null);
 
   const save = async () => {
-    setSaving(true)
-    setMessage(null)
+    setSaving(true);
+    setMessage(null);
     try {
       const res = await fetch("/api/business", {
         method: "PATCH",
@@ -868,29 +1170,37 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
           confirmTemplate: confirm,
           reminderTemplate: reminder,
         }),
-      })
-      if (!res.ok) throw new Error("Gagal menyimpan")
-      onUpdate({ ...business, welcomeMessage: welcome, confirmTemplate: confirm, reminderTemplate: reminder })
-      setMessage({ type: "success", text: "Template berhasil disimpan" })
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan");
+      onUpdate({
+        ...business,
+        welcomeMessage: welcome,
+        confirmTemplate: confirm,
+        reminderTemplate: reminder,
+      });
+      setMessage({ type: "success", text: "Template berhasil disimpan" });
     } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Terjadi kesalahan" })
+      setMessage({
+        type: "error",
+        text: e instanceof Error ? e.message : "Terjadi kesalahan",
+      });
     } finally {
-      setSaving(false)
-      setTimeout(() => setMessage(null), 3000)
+      setSaving(false);
+      setTimeout(() => setMessage(null), 3000);
     }
-  }
+  };
 
   const resetDefaults = () => {
-    setWelcome(DEFAULT_WELCOME)
-    setConfirm(DEFAULT_CONFIRM)
-    setReminder(DEFAULT_REMINDER)
-  }
+    setWelcome(DEFAULT_WELCOME);
+    setConfirm(DEFAULT_CONFIRM);
+    setReminder(DEFAULT_REMINDER);
+  };
 
   const openPreview = (label: string, text: string) => {
-    setPreviewLabel(label)
-    setPreviewText(resolvePreview(text, business.name))
-    setPreviewOpen(true)
-  }
+    setPreviewLabel(label);
+    setPreviewText(resolvePreview(text, business.name));
+    setPreviewOpen(true);
+  };
 
   return (
     <Card>
@@ -902,7 +1212,10 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
           onChange={setWelcome}
           textareaRef={welcomeRef}
         />
-        <Button variant="ghost" onClick={() => openPreview("Pesan Sambutan", welcome)}>
+        <Button
+          variant="ghost"
+          onClick={() => openPreview("Pesan Sambutan", welcome)}
+        >
           Preview Pesan
         </Button>
 
@@ -913,7 +1226,10 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
           onChange={setConfirm}
           textareaRef={confirmRef}
         />
-        <Button variant="ghost" onClick={() => openPreview("Pesan Konfirmasi Booking", confirm)}>
+        <Button
+          variant="ghost"
+          onClick={() => openPreview("Pesan Konfirmasi Booking", confirm)}
+        >
           Preview Pesan
         </Button>
 
@@ -924,7 +1240,10 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
           onChange={setReminder}
           textareaRef={reminderRef}
         />
-        <Button variant="ghost" onClick={() => openPreview("Pesan Pengingat H-1", reminder)}>
+        <Button
+          variant="ghost"
+          onClick={() => openPreview("Pesan Pengingat H-1", reminder)}
+        >
           Preview Pesan
         </Button>
 
@@ -934,16 +1253,24 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
           </Button>
           <div className="flex items-center gap-2">
             {message && (
-              <p className={`text-sm ${message.type === "success" ? "text-emerald-600" : "text-red-500"}`}>
+              <p
+                className={`text-sm ${message.type === "success" ? "text-emerald-600" : "text-red-500"}`}
+              >
                 {message.text}
               </p>
             )}
-            <Button onClick={save} loading={saving}>Simpan</Button>
+            <Button onClick={save} loading={saving}>
+              Simpan
+            </Button>
           </div>
         </div>
       </div>
 
-      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} title={`Preview: ${previewLabel}`}>
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        title={`Preview: ${previewLabel}`}
+      >
         <div className="rounded-lg bg-blue-50 p-4">
           <p className="whitespace-pre-wrap text-sm text-zinc-800">
             {previewText}
@@ -951,22 +1278,22 @@ function BotTab({ business, onUpdate }: { business: BusinessData; onUpdate: (b: 
         </div>
       </Dialog>
     </Card>
-  )
+  );
 }
 
 function NotifikasiTab() {
-  const [sendToWa, setSendToWa] = useState(false)
-  const [waNumber, setWaNumber] = useState("")
-  const [dailySummary, setDailySummary] = useState(false)
-  const [summaryTime, setSummaryTime] = useState("07:00")
-  const [saved, setSaved] = useState(false)
+  const [sendToWa, setSendToWa] = useState(false);
+  const [waNumber, setWaNumber] = useState("");
+  const [dailySummary, setDailySummary] = useState(false);
+  const [summaryTime, setSummaryTime] = useState("07:00");
+  const [saved, setSaved] = useState(false);
 
   const save = () => {
-    const data = { sendToWa, waNumber, dailySummary, summaryTime }
-    localStorage.setItem("notification-settings", JSON.stringify(data))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
+    const data = { sendToWa, waNumber, dailySummary, summaryTime };
+    localStorage.setItem("notification-settings", JSON.stringify(data));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <Card>
@@ -1010,9 +1337,11 @@ function NotifikasiTab() {
 
         <div className="flex items-center gap-2">
           <Button onClick={save}>Simpan</Button>
-          {saved && <p className="text-sm text-emerald-600">Pengaturan tersimpan</p>}
+          {saved && (
+            <p className="text-sm text-emerald-600">Pengaturan tersimpan</p>
+          )}
         </div>
       </div>
     </Card>
-  )
+  );
 }

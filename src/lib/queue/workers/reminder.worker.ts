@@ -64,10 +64,12 @@ export function createReminderWorker() {
         const template = business.reminderTemplate
         if (template) {
           message = template
-            .replace(/{customerName}/g, booking.customerName)
-            .replace(/{serviceName}/g, booking.service.name)
-            .replace(/{date}/g, scheduledDate)
-            .replace(/{time}/g, scheduledTime)
+            .replace(/{nama_pelanggan}/g, booking.customerName)
+            .replace(/{layanan}/g, booking.service.name)
+            .replace(/{tanggal}/g, scheduledDate)
+            .replace(/{jam}/g, scheduledTime)
+            .replace(/{nama_bisnis}/g, business.name)
+            .replace(/{kode_booking}/g, booking.bookingCode)
         } else {
           message = `Halo ${booking.customerName}, ini adalah pengingat untuk booking kamu besok:\n\nLayanan: ${booking.service.name}\nTanggal: ${scheduledDate}\nJam: ${scheduledTime}\n\nTerima kasih!`
         }
