@@ -186,7 +186,8 @@ export default function SchedulePage() {
   }
 
   function formatDate(dateStr: string) {
-    const d = new Date(dateStr + "T00:00:00")
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
     return d.toLocaleDateString("id-ID", {
       day: "numeric",
       month: "long",
