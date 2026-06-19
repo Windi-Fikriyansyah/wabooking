@@ -38,8 +38,20 @@ const AVAILABLE_VARS = [
 
 const DEFAULT_WELCOME =
   "Halo {nama_pelanggan}👋 Selamat datang di {nama_bisnis}. Silakan pilih menu berikut";
-const DEFAULT_CONFIRM =
-  "Halo {nama_pelanggan}! Booking {layanan} Anda pada {tanggal} pukul {jam} telah dikonfirmasi. Kode booking: {kode_booking}. Terima kasih!";
+const DEFAULT_CONFIRM = `✅ *Booking Berhasil Dikonfirmasi*
+
+Halo {nama_pelanggan},
+
+Booking Anda telah berhasil dikonfirmasi dengan detail berikut:
+
+📌 *Layanan:* {layanan}
+📅 *Tanggal:* {tanggal}
+🕒 *Jam:* {jam}
+🎫 *Kode Booking:* {kode_booking}
+
+Mohon simpan kode booking ini untuk keperluan konfirmasi atau perubahan jadwal.
+
+Terima kasih telah mempercayakan layanan kepada kami. Kami tunggu kedatangan Anda 😊`;
 const DEFAULT_REMINDER =
   "Halo {nama_pelanggan}! Ini adalah pengingat untuk booking {layanan} Anda besok, {tanggal} pukul {jam} di {nama_bisnis}. Sampai jumpa!";
 

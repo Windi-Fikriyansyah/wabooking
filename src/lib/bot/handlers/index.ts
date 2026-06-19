@@ -54,7 +54,6 @@ export async function handleIdle({
 
   const interactive = {
     type: "list",
-    header: { type: "text", text: "Menu Utama" },
     body: { text: welcome },
     action: {
       button: "Lihat Menu",
@@ -74,11 +73,6 @@ export async function handleIdle({
             },
             {
               id: "3",
-              title: "Hubungi Admin",
-              description: "Kontak admin bisnis",
-            },
-            {
-              id: "4",
               title: "Informasi Harga",
               description: "Lihat daftar harga layanan",
             },
@@ -116,20 +110,7 @@ export async function handleMainMenu({
     };
   }
 
-  if (lower === "3" || lower.toLowerCase() === "hubungi admin") {
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-    });
-    const info =
-      `*Hubungi Admin*\n\n` +
-      `${business?.name || "Nama bisnis tidak tersedia"}\n\n` +
-      `${business?.description || "Belum ada deskripsi."}\n\n` +
-      `WA: ${business?.waNumber || "-"}\n\n` +
-      `Ketik *menu* untuk kembali.`;
-    return { reply: info, newState: "MAIN_MENU" };
-  }
-
-  if (lower === "4" || lower.toLowerCase() === "informasi harga") {
+  if (lower === "3" || lower.toLowerCase() === "informasi harga") {
     const services = await prisma.service.findMany({
       where: { businessId, isActive: true },
       orderBy: { sortOrder: "asc" },
@@ -146,13 +127,45 @@ export async function handleMainMenu({
     } else {
       info += "Belum ada layanan tersedia.\n";
     }
-    info += "\nKetik *menu* untuk kembali.";
-    return { reply: info, newState: "MAIN_MENU" };
+    info += "\n\nSilakan pilih menu di bawah ini:";
+    return {
+      reply: info,
+      newState: "MAIN_MENU",
+      interactive: {
+        type: "list",
+        body: { text: info },
+        action: {
+          button: "Lihat Menu",
+          sections: [
+            {
+              title: "Menu",
+              rows: [
+                {
+                  id: "1",
+                  title: "Booking Layanan",
+                  description: "Booking layanan sekarang",
+                },
+                {
+                  id: "2",
+                  title: "Cek Jadwal",
+                  description: "Cek status booking kamu",
+                },
+                {
+                  id: "3",
+                  title: "Informasi Harga",
+                  description: "Lihat daftar harga layanan",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
   }
 
   return {
     reply:
-      "Pilihan tidak valid. Silakan pilih 1-4 atau ketik *menu*.\n\n1. Booking Layanan\n2. Cek Jadwal\n3. Hubungi Admin\n4. Informasi Harga",
+      "Pilihan tidak valid. Silakan pilih 1-3 atau ketik *menu*.\n\n1. Booking Layanan\n2. Cek Jadwal\n3. Informasi Harga",
     newState: "MAIN_MENU",
   };
 }
@@ -354,7 +367,11 @@ export async function handleSelectDate({
     });
   }
 
-  if (lower === "ubah_layanan" || lower === "ubah layanan" || lower === "ganti layanan") {
+  if (
+    lower === "ubah_layanan" ||
+    lower === "ubah layanan" ||
+    lower === "ganti layanan"
+  ) {
     return await handleBookingStart({
       businessId,
       waNumber: waNumber || "",
@@ -453,7 +470,11 @@ export async function handleSelectTime({
     });
   }
 
-  if (["ganti tanggal", "ubah tanggal", "ganti tgl", "ubah_tanggal"].includes(lower)) {
+  if (
+    ["ganti tanggal", "ubah tanggal", "ganti tgl", "ubah_tanggal"].includes(
+      lower,
+    )
+  ) {
     const days = getNext7Days();
     const dayList = days.map((d, i) => `${i + 1}. ${formatDate(d)}`).join("\n");
     const interactive = {
@@ -577,7 +598,17 @@ export async function handleInputName({
     });
   }
 
-  if (["ganti tanggal", "ubah tanggal", "ganti tgl", "ganti jam", "ubah jam", "ganti layanan", "ubah layanan"].includes(lower)) {
+  if (
+    [
+      "ganti tanggal",
+      "ubah tanggal",
+      "ganti tgl",
+      "ganti jam",
+      "ubah jam",
+      "ganti layanan",
+      "ubah layanan",
+    ].includes(lower)
+  ) {
     return {
       reply: "Silakan pilih tanggal yang baru.",
       newState: "SELECT_DATE" as BotState,
@@ -644,7 +675,9 @@ export async function handleConfirm({
 }: HandlerParams) {
   const lower = message.trim().toLowerCase();
 
-  const isYes = ["0", "ya", "yes", "konfirmasi", "confirm", "y"].includes(lower);
+  const isYes = ["0", "ya", "yes", "konfirmasi", "confirm", "y"].includes(
+    lower,
+  );
   const isNo = ["1", "tidak", "no", "batal", "cancel", "n"].includes(lower);
 
   if (!isYes && !isNo) {
@@ -762,14 +795,18 @@ export async function handleConfirm({
   const business = booking.business;
 
   const scheduledDate = bookingDate.toLocaleDateString("id-ID", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
   const scheduledTime = bookingDate.toLocaleTimeString("id-ID", {
-    hour: "2-digit", minute: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
-  const confirmTemplate = business?.confirmTemplate
-  let confirmMessage = ""
+  const confirmTemplate = business?.confirmTemplate;
+  let confirmMessage = "";
   if (confirmTemplate) {
     confirmMessage = confirmTemplate
       .replace(/{nama_pelanggan}/g, context.customerName)
@@ -777,7 +814,7 @@ export async function handleConfirm({
       .replace(/{tanggal}/g, scheduledDate)
       .replace(/{jam}/g, scheduledTime)
       .replace(/{nama_bisnis}/g, business?.name || "")
-      .replace(/{kode_booking}/g, bookingCode)
+      .replace(/{kode_booking}/g, bookingCode);
   } else {
     confirmMessage =
       `✅ *Booking Dikonfirmasi!*\n\n` +
@@ -785,20 +822,22 @@ export async function handleConfirm({
       `Layanan: ${context.serviceName}\n` +
       `Tanggal: ${scheduledDate}\n` +
       `Jam: ${scheduledTime}\n\n` +
-      `Terima kasih telah menggunakan layanan kami 🙏`
+      `Terima kasih telah menggunakan layanan kami 🙏`;
   }
 
-  notificationQueue.add("booking-status", {
-    businessId,
-    type: "booking_new",
-    customerName: context.customerName,
-    serviceName: context.serviceName,
-    scheduledAt: `${scheduledDate} ${scheduledTime}`,
-    bookingId: booking.id,
-    status: "CONFIRMED",
-  }).catch(() => {})
+  notificationQueue
+    .add("booking-status", {
+      businessId,
+      type: "booking_new",
+      customerName: context.customerName,
+      serviceName: context.serviceName,
+      scheduledAt: `${scheduledDate} ${scheduledTime}`,
+      bookingId: booking.id,
+      status: "CONFIRMED",
+    })
+    .catch(() => {});
 
-  const reminderTime = new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+  const reminderTime = new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000);
   if (reminderTime > new Date()) {
     await prisma.reminder.create({
       data: {
@@ -806,10 +845,10 @@ export async function handleConfirm({
         type: "DAY_BEFORE",
         scheduledAt: reminderTime,
       },
-    })
+    });
   }
 
-  const hourBeforeTime = new Date(bookingDate.getTime() - 60 * 60 * 1000)
+  const hourBeforeTime = new Date(bookingDate.getTime() - 60 * 60 * 1000);
   if (hourBeforeTime > new Date()) {
     await prisma.reminder.create({
       data: {
@@ -817,7 +856,7 @@ export async function handleConfirm({
         type: "HOUR_BEFORE",
         scheduledAt: hourBeforeTime,
       },
-    })
+    });
   }
 
   return {
