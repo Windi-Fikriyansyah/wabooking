@@ -810,88 +810,75 @@ function IntegrasiTab({
 
             {/* Action buttons */}
             <div className="mt-4 flex gap-2 border-t border-zinc-100 pt-4">
-              <button
+              {/* <button
                 type="button"
                 onClick={testConnection}
                 disabled={testing}
                 className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
               >
                 {testing ? "Testing..." : "Settings"}
+              </button> */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setDisconnecting(true);
+                  try {
+                    let accId = waAccount?.id;
+                    if (!accId) {
+                      const acctRes = await fetch(
+                        `/api/zernio/accounts?businessId=${business.id}`,
+                      );
+                      if (acctRes.ok) {
+                        const acctData = await acctRes.json();
+                        const wa = Array.isArray(acctData.accounts)
+                          ? acctData.accounts.find(
+                              (a: any) =>
+                                (a.platform === "whatsapp" ||
+                                  a.platform === "wa") &&
+                                a.status === "connected",
+                            )
+                          : null;
+                        accId = wa?.id || status?.waNumber || business.waNumber;
+                      }
+                    }
+                    if (!accId) return;
+                    const res = await fetch("/api/zernio/disconnect-wa", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        businessId: business.id,
+                        accountId: accId,
+                      }),
+                    });
+                    if (!res.ok) throw new Error("Gagal disconnect");
+                    setWaAccount(null);
+                    setStatus({
+                      hasApiKey: !!status?.hasApiKey,
+                      waConnected: false,
+                    });
+                    onUpdate({
+                      ...business,
+                      zernioConnected: false,
+                      waNumber: "",
+                      waConnected: false,
+                    });
+                  } catch {
+                    setConnError("Gagal memutuskan WhatsApp");
+                  } finally {
+                    setDisconnecting(false);
+                  }
+                }}
+                disabled={disconnecting}
+                className="flex-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {disconnecting ? "Memproses..." : "Disconnect"}
               </button>
-              {waAccount && (
-                <button
-                  type="button"
-                  onClick={disconnectWA}
-                  disabled={disconnecting}
-                  className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
-                >
-                  {disconnecting ? "..." : "Disconnect"}
-                </button>
-              )}
             </div>
           </div>
         </div>
       ) : null}
 
-      {waConnected ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={async () => {
-              setDisconnecting(true);
-              try {
-                let accId = waAccount?.id;
-                if (!accId) {
-                  const acctRes = await fetch(
-                    `/api/zernio/accounts?businessId=${business.id}`,
-                  );
-                  if (acctRes.ok) {
-                    const acctData = await acctRes.json();
-                    const wa = Array.isArray(acctData.accounts)
-                      ? acctData.accounts.find(
-                          (a: any) =>
-                            (a.platform === "whatsapp" ||
-                              a.platform === "wa") &&
-                            a.status === "connected",
-                        )
-                      : null;
-                    accId = wa?.id || status?.waNumber || business.waNumber;
-                  }
-                }
-                if (!accId) return;
-                const res = await fetch("/api/zernio/disconnect-wa", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    businessId: business.id,
-                    accountId: accId,
-                  }),
-                });
-                if (!res.ok) throw new Error("Gagal disconnect");
-                setWaAccount(null);
-                setStatus({
-                  hasApiKey: !!status?.hasApiKey,
-                  waConnected: false,
-                });
-                onUpdate({
-                  ...business,
-                  zernioConnected: false,
-                  waNumber: "",
-                  waConnected: false,
-                });
-              } catch {
-                setConnError("Gagal memutuskan WhatsApp");
-              } finally {
-                setDisconnecting(false);
-              }
-            }}
-            disabled={disconnecting}
-            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-          >
-            {disconnecting ? "Memutuskan..." : "Putuskan WhatsApp"}
-          </button>
-        </div>
-      ) : (
+      {waConnected ? null : (
         <Card>
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
