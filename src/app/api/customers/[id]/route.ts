@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth()
   if (!session?.user?.id) {
@@ -18,8 +18,9 @@ export async function GET(
     return NextResponse.json({ error: "businessId diperlukan" }, { status: 400 })
   }
 
+  const { id } = await params
   const customer = await prisma.customer.findFirst({
-    where: { id: params.id, businessId, business: { ownerId: session.user.id } },
+    where: { id, businessId, business: { ownerId: session.user.id } },
     include: {
       bookings: {
         include: { service: true },
@@ -66,7 +67,7 @@ export async function GET(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth()
   if (!session?.user?.id) {
@@ -80,8 +81,9 @@ export async function PATCH(
     return NextResponse.json({ error: "businessId diperlukan" }, { status: 400 })
   }
 
+  const { id } = await params
   const customer = await prisma.customer.findFirst({
-    where: { id: params.id, businessId, business: { ownerId: session.user.id } },
+    where: { id, businessId, business: { ownerId: session.user.id } },
   })
 
   if (!customer) {
@@ -89,7 +91,7 @@ export async function PATCH(
   }
 
   const updated = await prisma.customer.update({
-    where: { id: params.id },
+    where: { id },
     data: { notes },
   })
 
