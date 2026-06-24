@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
-import { encryptApiKey } from "@/lib/crypto"
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -11,7 +10,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { business, services, schedules, zernioApiKey, waNumber } = body
+    const { business, services, schedules, waNumber } = body
 
     if (!business?.name) {
       return NextResponse.json({ error: "Nama bisnis harus diisi" }, { status: 400 })
@@ -29,7 +28,6 @@ export async function POST(req: Request) {
         address: business.address || null,
         description: business.description || null,
         logoUrl: business.logoUrl || null,
-        zernioApiKey: zernioApiKey ? encryptApiKey(zernioApiKey) : null,
         waNumber: waNumber || null,
         services: {
           create: services.map((s: any, i: number) => ({

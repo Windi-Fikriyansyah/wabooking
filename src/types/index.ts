@@ -11,7 +11,6 @@ export interface BusinessData {
   timezone: string
   waNumber: string | null
   waConnected: boolean
-  zernioApiKey: string | null
 }
 
 export interface ServiceData {

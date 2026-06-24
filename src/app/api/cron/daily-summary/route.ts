@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function GET(req: Request) {
@@ -16,10 +15,13 @@ export async function GET(req: Request) {
     const todayEnd = new Date(todayStart)
     todayEnd.setDate(todayEnd.getDate() + 1)
 
+    if (!process.env.ZERNIO_API_KEY) {
+      return NextResponse.json({ success: false, error: "ZERNIO_API_KEY not configured" }, { status: 500 })
+    }
+
     const businesses = await prisma.business.findMany({
       where: {
         dailySummaryEnabled: true,
-        zernioApiKey: { not: null },
         waNumber: { not: null },
       },
     })
@@ -29,7 +31,7 @@ export async function GET(req: Request) {
 
     for (const business of businesses) {
       try {
-        if (!business.zernioApiKey || !business.waNumber) {
+        if (!business.waNumber) {
           skipped++
           continue
         }
@@ -55,8 +57,7 @@ export async function GET(req: Request) {
 
         const message = `📊 Ringkasan Harian ${business.name}\n${todayStart.toLocaleDateString("id-ID")}\n\nTotal Booking: ${total}\n✅ Dikonfirmasi: ${confirmed}\n⏳ Pending: ${pending}\n❌ Dibatalkan: ${cancelled}\n✔️ Selesai: ${completed}\n\nTerima kasih telah menggunakan WaBooking!`
 
-        const apiKey = decryptApiKey(business.zernioApiKey)
-        const zernio = new ZernioClient(apiKey)
+        const zernio = new ZernioClient()
         await zernio.sendText(business.waNumber, message)
         sent++
       } catch (err) {

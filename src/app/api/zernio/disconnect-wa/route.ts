@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function POST(req: Request) {
@@ -14,17 +13,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: { zernioApiKey: true },
-    })
-
-    if (!business?.zernioApiKey) {
-      return NextResponse.json({ error: "API Key belum tersimpan" }, { status: 400 })
-    }
-
-    const apiKey = decryptApiKey(business.zernioApiKey)
-    const zernio = new ZernioClient(apiKey)
+    const zernio = new ZernioClient()
 
     await zernio.disconnectAccount(accountId)
 
@@ -32,6 +21,7 @@ export async function POST(req: Request) {
       where: { id: businessId },
       data: {
         zernioConnected: false,
+        zernioAccountId: null,
         waNumber: null,
       },
     })

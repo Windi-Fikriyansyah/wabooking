@@ -50,8 +50,8 @@ model Business {
   logoUrl          String?
   description      String?
   timezone         String    @default("Asia/Jakarta")
-  zernioApiKey     String?
   zernioConnected  Boolean   @default(false)
+  zernioAccountId  String?
   waNumber         String?
   waConnected      Boolean   @default(false)
   reminderTemplate String?

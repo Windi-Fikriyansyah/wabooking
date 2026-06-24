@@ -1,7 +1,6 @@
 import { Worker } from "bullmq"
 import IORedis from "ioredis"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
@@ -42,7 +41,7 @@ export function createReminderWorker() {
         return
       }
 
-      if (!business.zernioApiKey) {
+      if (!process.env.ZERNIO_API_KEY) {
         await prisma.reminder.update({
           where: { id: reminderId },
           data: { status: "FAILED" },
@@ -50,8 +49,7 @@ export function createReminderWorker() {
         return
       }
 
-      const apiKey = decryptApiKey(business.zernioApiKey)
-      const zernio = new ZernioClient(apiKey)
+      const zernio = new ZernioClient()
 
       const scheduledTime = booking.scheduledAt.toLocaleTimeString("id-ID", {
         hour: "2-digit",

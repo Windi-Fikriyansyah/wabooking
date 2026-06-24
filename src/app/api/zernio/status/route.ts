@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function GET(req: Request) {
@@ -17,10 +16,10 @@ export async function GET(req: Request) {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { zernioApiKey: true, zernioConnected: true, waNumber: true },
+      select: { zernioConnected: true, waNumber: true },
     })
 
-    if (!business || !business.zernioApiKey) {
+    if (!business) {
       return NextResponse.json({
         hasApiKey: false,
         connected: false,
@@ -29,12 +28,11 @@ export async function GET(req: Request) {
     }
 
     // Report DB state first, then try live check without overwriting
-    let liveConnected = false
-    let liveWaNumber: string | null = null
+    let liveConnected = business.zernioConnected
+    let liveWaNumber: string | null = business.waNumber
 
     try {
-      const apiKey = decryptApiKey(business.zernioApiKey)
-      const zernio = new ZernioClient(apiKey)
+      const zernio = new ZernioClient()
       const status = await zernio.checkConnection()
       liveConnected = status.connected
       liveWaNumber = status.waNumber || null

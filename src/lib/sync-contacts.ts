@@ -1,17 +1,10 @@
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function syncContactsFromZernio(businessId: string): Promise<{ synced: number }> {
-  const business = await prisma.business.findUnique({
-    where: { id: businessId },
-    select: { zernioApiKey: true },
-  })
+  if (!process.env.ZERNIO_API_KEY) return { synced: 0 }
 
-  if (!business?.zernioApiKey) return { synced: 0 }
-
-  const apiKey = decryptApiKey(business.zernioApiKey)
-  const zernio = new ZernioClient(apiKey)
+  const zernio = new ZernioClient()
 
   const contacts = await zernio.listContacts("whatsapp")
   let synced = 0

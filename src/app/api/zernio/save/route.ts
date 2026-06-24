@@ -1,22 +1,21 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { encryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 const APP_URL = process.env.AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
 export async function POST(req: Request) {
   try {
-    const { apiKey, businessId } = await req.json()
+    const { businessId } = await req.json()
 
-    if (!apiKey || !businessId) {
+    if (!businessId) {
       return NextResponse.json(
-        { error: "API Key dan Business ID wajib diisi" },
+        { error: "Business ID wajib diisi" },
         { status: 400 }
       )
     }
 
-    const zernio = new ZernioClient(apiKey)
+    const zernio = new ZernioClient()
     const validation = await zernio.validateApiKey()
 
     if (!validation.valid) {
@@ -27,23 +26,21 @@ export async function POST(req: Request) {
     }
 
     const connection = await zernio.checkConnection()
-    const encrypted = encryptApiKey(apiKey)
 
     await prisma.business.update({
       where: { id: businessId },
       data: {
-        zernioApiKey: encrypted,
         zernioConnected: connection.connected,
         waNumber: connection.waNumber || null,
       },
     })
 
-    // Register webhook ke Zernio
-    const webhookUrl = `${APP_URL.replace(/\/+$/, "")}/api/webhook/${businessId}`
+    // Register global webhook ke Zernio (1 URL untuk semua tenant)
+    const globalWebhookUrl = `${APP_URL.replace(/\/+$/, "")}/api/webhook`
     const existing = await zernio.listWebhooks()
-    const already = existing.find((w) => w.url === webhookUrl)
+    const already = existing.find((w) => w.url === globalWebhookUrl)
     if (!already) {
-      await zernio.registerWebhook(webhookUrl)
+      await zernio.registerWebhook(globalWebhookUrl)
     }
 
     return NextResponse.json({

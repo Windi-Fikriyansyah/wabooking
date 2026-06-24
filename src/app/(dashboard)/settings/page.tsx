@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
@@ -72,7 +71,6 @@ type BusinessData = {
   logoUrl: string;
   waNumber: string;
   waConnected: boolean;
-  zernioApiKey: string;
   zernioConnected: boolean;
   welcomeMessage: string;
   confirmTemplate: string;
@@ -80,23 +78,9 @@ type BusinessData = {
 };
 
 type ZernioStatus = {
-  hasApiKey: boolean;
   waConnected: boolean;
   waNumber?: string;
 };
-
-function statusDot(connected: boolean) {
-  return (
-    <span className="flex items-center gap-2 text-sm font-medium">
-      <span
-        className={`inline-block h-2.5 w-2.5 rounded-full ${
-          connected ? "bg-emerald-500" : "bg-red-500"
-        }`}
-      />
-      {connected ? "Terhubung" : "Tidak Terhubung"}
-    </span>
-  );
-}
 
 function resolvePreview(text: string, businessName: string) {
   let preview = text;
@@ -422,19 +406,12 @@ function IntegrasiTab({
   const [status, setStatus] = useState<ZernioStatus | null>(null);
   const [checking, setChecking] = useState(true);
 
-  const [apiKey, setApiKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [connError, setConnError] = useState<string | null>(null);
-  const [connSuccess, setConnSuccess] = useState<string | null>(null);
-
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     msg: string;
   } | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
-  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [waConnecting, setWaConnecting] = useState(false);
   const [waConnectError, setWaConnectError] = useState<string | null>(null);
@@ -456,31 +433,27 @@ function IntegrasiTab({
       if (!res.ok) throw new Error("Gagal cek status");
       const data = await res.json();
       setStatus({
-        hasApiKey: data.hasApiKey ?? !!business.zernioApiKey,
         waConnected: data.connected,
         waNumber: data.waNumber,
       });
     } catch {
-      setStatus({ hasApiKey: !!business.zernioApiKey, waConnected: false });
+      setStatus({ waConnected: false });
     } finally {
       setChecking(false);
     }
-  }, [business.id, business.zernioApiKey]);
+  }, [business.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const zernioParam = params.get("zernio");
 
     if (zernioParam === "connected") {
-      // Fetch connected accounts directly from Zernio
       (async () => {
         try {
-          const res = await fetch(
-            `/api/zernio/accounts?businessId=${business.id}`,
-          );
+          const res = await fetch(`/api/zernio/accounts`);
           if (res.ok) {
             const data = await res.json();
-            const waAccount = Array.isArray(data.accounts)
+            const wa = Array.isArray(data.accounts)
               ? data.accounts.find(
                   (a: any) =>
                     (a.platform === "whatsapp" || a.platform === "wa") &&
@@ -488,14 +461,13 @@ function IntegrasiTab({
                 )
               : null;
             const number =
-              waAccount?.phone || waAccount?.username || params.get("wa") || "";
-            setConnSuccess("WhatsApp berhasil terhubung!");
+              wa?.phone || wa?.username || params.get("wa") || "";
             setWaAccount(
-              waAccount
+              wa
                 ? {
-                    name: waAccount.name || waAccount.username || "",
+                    name: wa.name || wa.username || "",
                     username: number,
-                    id: waAccount.id,
+                    id: wa.id,
                   }
                 : null,
             );
@@ -505,75 +477,28 @@ function IntegrasiTab({
               waNumber: number,
               waConnected: true,
             });
-            setStatus({ hasApiKey: true, waConnected: true, waNumber: number });
+            setStatus({ waConnected: true, waNumber: number });
           }
         } catch {
-          setConnSuccess("WhatsApp berhasil terhubung!");
-          setStatus({
-            hasApiKey: true,
-            waConnected: true,
-            waNumber: params.get("wa") || "",
-          });
           setWaAccount({
             name: params.get("wa") || "",
             username: params.get("wa") || "",
             id: "",
           });
           onUpdate({ ...business, zernioConnected: true, waConnected: true });
+          setStatus({
+            waConnected: true,
+            waNumber: params.get("wa") || "",
+          });
         }
       })();
       window.history.replaceState({}, "", "/settings");
-      setTimeout(() => setConnSuccess(null), 5000);
     } else if (zernioParam === "error") {
-      setConnError("Gagal menghubungkan WhatsApp. Silakan coba lagi.");
       window.history.replaceState({}, "", "/settings");
     } else {
       checkStatus();
     }
   }, [checkStatus]);
-
-  const connect = async () => {
-    if (!apiKey.trim()) {
-      setConnError("API Key wajib diisi");
-      return;
-    }
-    setConnecting(true);
-    setConnError(null);
-    setConnSuccess(null);
-    try {
-      const res = await fetch("/api/zernio/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessId: business.id,
-          apiKey: apiKey.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success)
-        throw new Error(data.error || "Koneksi gagal");
-
-      setConnSuccess(data.message || "Berhasil tersimpan");
-      onUpdate({
-        ...business,
-        zernioApiKey: apiKey.trim(),
-        zernioConnected: data.connected,
-        waNumber: data.waNumber || business.waNumber,
-        waConnected: data.connected,
-      });
-      setStatus({
-        hasApiKey: true,
-        waConnected: data.connected,
-        waNumber: data.waNumber,
-      });
-      setApiKey("");
-      setTimeout(() => setConnSuccess(null), 4000);
-    } catch (e) {
-      setConnError(e instanceof Error ? e.message : "Terjadi kesalahan");
-    } finally {
-      setConnecting(false);
-    }
-  };
 
   const connectWhatsApp = async () => {
     setWaConnecting(true);
@@ -603,7 +528,6 @@ function IntegrasiTab({
       const res = await fetch("/api/zernio/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessId: business.id }),
       });
       const data = await res.json();
       setTestResult({
@@ -624,22 +548,22 @@ function IntegrasiTab({
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`);
+      const res = await fetch(`/api/zernio/accounts`);
       if (!res.ok) throw new Error("Gagal sync");
       const data = await res.json();
-      const waAccount = Array.isArray(data.accounts)
+      const wa = Array.isArray(data.accounts)
         ? data.accounts.find(
             (a: any) =>
               (a.platform === "whatsapp" || a.platform === "wa") &&
               a.status === "connected",
           )
         : null;
-      if (waAccount) {
-        const number = waAccount.phone || waAccount.username || "";
+      if (wa) {
+        const number = wa.phone || wa.username || "";
         setWaAccount({
-          name: waAccount.name || waAccount.username || "",
+          name: wa.name || wa.username || "",
           username: number,
-          id: waAccount.id,
+          id: wa.id,
         });
         onUpdate({
           ...business,
@@ -647,11 +571,11 @@ function IntegrasiTab({
           waNumber: number,
           waConnected: true,
         });
-        setStatus({ hasApiKey: true, waConnected: true, waNumber: number });
+        setStatus({ waConnected: true, waNumber: number });
         setSyncResult({ ok: true, msg: `WhatsApp terhubung: ${number}` });
       } else {
         setWaAccount(null);
-        setStatus({ hasApiKey: true, waConnected: false });
+        setStatus({ waConnected: false });
         onUpdate({ ...business, zernioConnected: false, waConnected: false });
         setSyncResult({
           ok: false,
@@ -663,31 +587,6 @@ function IntegrasiTab({
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncResult(null), 5000);
-    }
-  };
-
-  const disconnect = async () => {
-    setDisconnecting(true);
-    try {
-      const res = await fetch("/api/zernio/disconnect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessId: business.id }),
-      });
-      if (!res.ok) throw new Error("Gagal memutuskan koneksi");
-      onUpdate({
-        ...business,
-        zernioConnected: false,
-        zernioApiKey: "",
-        waConnected: false,
-      });
-      setStatus({ hasApiKey: false, waConnected: false });
-      setWaAccount(null);
-      setShowDisconnectConfirm(false);
-    } catch {
-      setConnError("Gagal memutuskan koneksi");
-    } finally {
-      setDisconnecting(false);
     }
   };
 
@@ -705,7 +604,7 @@ function IntegrasiTab({
       });
       if (!res.ok) throw new Error("Gagal memutuskan WhatsApp");
       setWaAccount(null);
-      setStatus({ hasApiKey: true, waConnected: false });
+      setStatus({ waConnected: false });
       onUpdate({
         ...business,
         zernioConnected: false,
@@ -713,13 +612,12 @@ function IntegrasiTab({
         waConnected: false,
       });
     } catch {
-      setConnError("Gagal memutuskan WhatsApp");
+      setWaConnectError("Gagal memutuskan WhatsApp");
     } finally {
       setDisconnecting(false);
     }
   };
 
-  const hasApiKey = status?.hasApiKey ?? !!business.zernioApiKey;
   const waConnected = status?.waConnected ?? business.zernioConnected;
 
   return (
@@ -727,7 +625,6 @@ function IntegrasiTab({
       {waConnected ? (
         <div className="max-w-xs">
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            {/* Header: WA icon + label + info */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#25D366] shadow-sm">
@@ -748,25 +645,8 @@ function IntegrasiTab({
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
-                title="Info"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4m0-4h.01" />
-                </svg>
-              </button>
             </div>
 
-            {/* Account info */}
             <div className="mt-4">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-medium text-zinc-800 truncate">
@@ -806,68 +686,10 @@ function IntegrasiTab({
               </p>
             </div>
 
-            {/* Default indicator */}
-
-            {/* Action buttons */}
             <div className="mt-4 flex gap-2 border-t border-zinc-100 pt-4">
-              {/* <button
-                type="button"
-                onClick={testConnection}
-                disabled={testing}
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
-              >
-                {testing ? "Testing..." : "Settings"}
-              </button> */}
               <button
                 type="button"
-                onClick={async () => {
-                  setDisconnecting(true);
-                  try {
-                    let accId = waAccount?.id;
-                    if (!accId) {
-                      const acctRes = await fetch(
-                        `/api/zernio/accounts?businessId=${business.id}`,
-                      );
-                      if (acctRes.ok) {
-                        const acctData = await acctRes.json();
-                        const wa = Array.isArray(acctData.accounts)
-                          ? acctData.accounts.find(
-                              (a: any) =>
-                                (a.platform === "whatsapp" ||
-                                  a.platform === "wa") &&
-                                a.status === "connected",
-                            )
-                          : null;
-                        accId = wa?.id || status?.waNumber || business.waNumber;
-                      }
-                    }
-                    if (!accId) return;
-                    const res = await fetch("/api/zernio/disconnect-wa", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        businessId: business.id,
-                        accountId: accId,
-                      }),
-                    });
-                    if (!res.ok) throw new Error("Gagal disconnect");
-                    setWaAccount(null);
-                    setStatus({
-                      hasApiKey: !!status?.hasApiKey,
-                      waConnected: false,
-                    });
-                    onUpdate({
-                      ...business,
-                      zernioConnected: false,
-                      waNumber: "",
-                      waConnected: false,
-                    });
-                  } catch {
-                    setConnError("Gagal memutuskan WhatsApp");
-                  } finally {
-                    setDisconnecting(false);
-                  }
-                }}
+                onClick={disconnectWA}
                 disabled={disconnecting}
                 className="flex-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
               >
@@ -886,21 +708,6 @@ function IntegrasiTab({
             </h2>
             {checking ? (
               <div className="h-5 w-32 animate-pulse rounded bg-zinc-200" />
-            ) : hasApiKey ? (
-              <>
-                {waConnected ? statusDot(true) : statusDot(false)}
-                {waConnected && status?.waNumber ? (
-                  <div className="space-y-1 text-sm">
-                    <p className="text-zinc-600">
-                      Nomor WA: <Badge variant="green">{status.waNumber}</Badge>
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-amber-600">
-                    API Key tersimpan, namun belum ada nomor WhatsApp terhubung.
-                  </p>
-                )}
-              </>
             ) : (
               <p className="text-sm text-zinc-400">Belum terhubung</p>
             )}
@@ -908,137 +715,60 @@ function IntegrasiTab({
         </Card>
       )}
 
-      {hasApiKey ? (
-        <>
-          <Card>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {!waAccount && !waConnected && (
-                  <Button onClick={connectWhatsApp} loading={waConnecting}>
-                    Hubungkan WhatsApp
-                  </Button>
-                )}
-                <Button
-                  variant="secondary"
-                  onClick={syncAccounts}
-                  loading={syncing}
-                >
-                  Sync
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={testConnection}
-                  loading={testing}
-                >
-                  Test Koneksi
-                </Button>
-                {!waAccount && (
-                  <Button
-                    variant="outline"
-                    className="border-red-300 text-red-600 hover:bg-red-50"
-                    onClick={() => setShowDisconnectConfirm(true)}
-                  >
-                    Putuskan Koneksi
-                  </Button>
-                )}
-              </div>
-              {waConnectError && (
-                <p className="text-sm text-red-500">{waConnectError}</p>
-              )}
-              {syncResult && (
-                <p
-                  className={`text-sm ${syncResult.ok ? "text-emerald-600" : "text-amber-600"}`}
-                >
-                  {syncResult.msg}
-                </p>
-              )}
-              {testResult && (
-                <p
-                  className={`text-sm ${testResult.ok ? "text-emerald-600" : "text-red-500"}`}
-                >
-                  {testResult.msg}
-                </p>
-              )}
-            </div>
-          </Card>
-          {!waAccount && !waConnected && (
-            <Card>
-              <div className="space-y-2 text-sm text-zinc-600">
-                <p>
-                  Klik <strong>Hubungkan WhatsApp</strong> untuk membuka halaman
-                  otorisasi Zernio. Setelah menyelesaikan otorisasi, Anda akan
-                  diarahkan kembali ke halaman ini.
-                </p>
-                <p className="text-xs text-zinc-400">
-                  Pastikan Anda sudah login ke akun Zernio di browser yang sama.
-                </p>
-              </div>
-            </Card>
-          )}
-        </>
-      ) : (
-        <Card>
-          <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
-              Hubungkan Zernio
-            </h2>
-            <div className="relative">
-              <Input
-                label="Zernio API Key"
-                type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk_..."
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-[38px] text-zinc-400 hover:text-zinc-600"
-              >
-                {showKey ? (
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                    />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {connError && <p className="text-sm text-red-500">{connError}</p>}
-            {connSuccess && (
-              <p className="text-sm text-emerald-600">{connSuccess}</p>
+      <Card>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {!waAccount && !waConnected && (
+              <Button onClick={connectWhatsApp} loading={waConnecting}>
+                Hubungkan WhatsApp
+              </Button>
             )}
-            <Button onClick={connect} loading={connecting}>
-              Simpan &amp; Hubungkan
+            <Button
+              variant="secondary"
+              onClick={syncAccounts}
+              loading={syncing}
+            >
+              Sync
             </Button>
+            <Button
+              variant="secondary"
+              onClick={testConnection}
+              loading={testing}
+            >
+              Test Koneksi
+            </Button>
+          </div>
+          {waConnectError && (
+            <p className="text-sm text-red-500">{waConnectError}</p>
+          )}
+          {syncResult && (
+            <p
+              className={`text-sm ${syncResult.ok ? "text-emerald-600" : "text-amber-600"}`}
+            >
+              {syncResult.msg}
+            </p>
+          )}
+          {testResult && (
+            <p
+              className={`text-sm ${testResult.ok ? "text-emerald-600" : "text-red-500"}`}
+            >
+              {testResult.msg}
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {!waAccount && !waConnected && (
+        <Card>
+          <div className="space-y-2 text-sm text-zinc-600">
+            <p>
+              Klik <strong>Hubungkan WhatsApp</strong> untuk membuka halaman
+              otorisasi Zernio. Setelah menyelesaikan otorisasi, Anda akan
+              diarahkan kembali ke halaman ini.
+            </p>
+            <p className="text-xs text-zinc-400">
+              Pastikan Anda sudah login ke akun Zernio di browser yang sama.
+            </p>
           </div>
         </Card>
       )}
@@ -1049,7 +779,7 @@ function IntegrasiTab({
           onClick={() => setGuideOpen(!guideOpen)}
           className="flex w-full items-center justify-between text-sm font-medium text-zinc-700"
         >
-          Panduan Koneksi Zernio
+          Panduan Koneksi
           <svg
             className={`h-4 w-4 transition-transform ${guideOpen ? "rotate-180" : ""}`}
             fill="none"
@@ -1067,25 +797,7 @@ function IntegrasiTab({
         {guideOpen && (
           <ol className="mt-4 space-y-2 text-sm text-zinc-600 list-decimal pl-5">
             <li>
-              Daftar akun di{" "}
-              <a
-                href="https://zernio.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                zernio.com
-              </a>{" "}
-              dan dapatkan API Key dari Settings → API Keys
-            </li>
-            <li>
-              Masukkan API Key di atas dan klik{" "}
-              <strong>Simpan &amp; Hubungkan</strong>
-            </li>
-            <li>
-              Setelah API Key tersimpan, klik{" "}
-              <strong>Hubungkan WhatsApp</strong> untuk membuka halaman
-              otorisasi Zernio
+              Klik <strong>Hubungkan WhatsApp</strong> untuk memulai
             </li>
             <li>
               Login ke akun Zernio (jika belum) dan izinkan akses ke WhatsApp
@@ -1097,32 +809,6 @@ function IntegrasiTab({
           </ol>
         )}
       </Card>
-
-      <Dialog
-        open={showDisconnectConfirm}
-        onClose={() => setShowDisconnectConfirm(false)}
-        title="Konfirmasi"
-      >
-        <p className="text-sm text-zinc-600">
-          Apakah Anda yakin ingin memutuskan koneksi Zernio?
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => setShowDisconnectConfirm(false)}
-          >
-            Batal
-          </Button>
-          <Button
-            variant="outline"
-            className="border-red-300 text-red-600 hover:bg-red-50"
-            onClick={disconnect}
-            loading={disconnecting}
-          >
-            Putuskan
-          </Button>
-        </div>
-      </Dialog>
     </div>
   );
 }

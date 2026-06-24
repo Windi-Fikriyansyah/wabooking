@@ -1,7 +1,6 @@
 import { Worker } from "bullmq"
 import IORedis from "ioredis"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
@@ -23,16 +22,15 @@ export function createNotificationWorker() {
         throw new Error(`Business ${businessId} not found`)
       }
 
-      if (!business.zernioApiKey) {
-        throw new Error(`Business ${businessId} has no Zernio API key`)
+      if (!process.env.ZERNIO_API_KEY) {
+        throw new Error(`Business ${businessId} has no Zernio API key configured globally`)
       }
 
       if (!business.waNumber) {
         throw new Error(`Business ${businessId} has no WA number configured`)
       }
 
-      const apiKey = decryptApiKey(business.zernioApiKey)
-      const zernio = new ZernioClient(apiKey)
+      const zernio = new ZernioClient()
 
       let message = ""
       switch (type) {

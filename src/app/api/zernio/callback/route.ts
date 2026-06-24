@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 import { syncContactsFromZernio } from "@/lib/sync-contacts"
 
@@ -21,23 +20,14 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${baseUrl}/settings?zernio=error&reason=invalid_state`)
     }
 
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: { zernioApiKey: true },
-    })
+    const zernio = new ZernioClient()
+    const profile = await zernio.getOrCreateProfile()
 
-    if (!business?.zernioApiKey) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-      return NextResponse.redirect(`${baseUrl}/settings?zernio=error&reason=no_api_key`)
-    }
-
-    const apiKey = decryptApiKey(business.zernioApiKey)
-    const zernio = new ZernioClient(apiKey)
-
-    await zernio.exchangeOAuthCode("whatsapp", code, state, profileId)
+    await zernio.exchangeOAuthCode("whatsapp", code, state, profile.id)
 
     // Poll for connected WhatsApp account
     let waNumber: string | null = null
+    let accountId: string | null = null
     for (let i = 0; i < 5; i++) {
       await new Promise((resolve) => setTimeout(resolve, 2000))
       const accounts = await zernio.getAccounts()
@@ -48,6 +38,7 @@ export async function GET(req: Request) {
       )
       if (wa) {
         waNumber = wa.phone || wa.username || null
+        accountId = wa.id
         break
       }
     }
@@ -56,16 +47,25 @@ export async function GET(req: Request) {
       where: { id: businessId },
       data: {
         zernioConnected: true,
+        zernioAccountId: accountId,
         waNumber: waNumber,
       },
     })
+
+    // Register global webhook if not exists
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const globalWebhookUrl = `${baseUrl.replace(/\/+$/, "")}/api/webhook`
+    const existing = await zernio.listWebhooks()
+    const already = existing.find((w) => w.url === globalWebhookUrl)
+    if (!already) {
+      await zernio.registerWebhook(globalWebhookUrl)
+    }
 
     // Sync contacts from Zernio
     syncContactsFromZernio(businessId).catch((err) =>
       console.error("[ZERNIO CALLBACK] Gagal sync kontak:", err)
     )
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     const redirectUrl = new URL("/settings", baseUrl)
     redirectUrl.searchParams.set("zernio", "connected")
     if (waNumber) {

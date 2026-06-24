@@ -21,7 +21,7 @@ interface Draft {
   services: ServiceItem[]
   schedules: ScheduleDay[]
   slotInterval: number
-  zernio: { apiKey: string; phone: string }
+  waPhone: string
 }
 
 function defaultDraft(): Draft {
@@ -31,7 +31,7 @@ function defaultDraft(): Draft {
     services: [],
     schedules: [],
     slotInterval: 60,
-    zernio: { apiKey: "", phone: "" },
+    waPhone: "",
   }
 }
 
@@ -79,15 +79,15 @@ export default function OnboardingPage() {
   const handleStep2 = (services: ServiceItem[]) => updateDraft({ services, step: 2 })
   const handleStep3 = (schedules: ScheduleDay[], slotInterval: number) => updateDraft({ schedules, slotInterval, step: 3 })
 
-  const handleStep4Save = (zernio: { apiKey: string; phone: string }) => {
-    const final = { ...draft, zernio, step: 4 } as Draft
+  const handleStep4Save = (data: { phone: string }) => {
+    const final = { ...draft, waPhone: data.phone, step: 4 } as Draft
     setDraft(final)
     saveDraft(final)
     submitFinal(final)
   }
 
   const handleStep4Skip = () => {
-    const final = { ...draft, zernio: { apiKey: "", phone: "" }, step: 4 } as Draft
+    const final = { ...draft, waPhone: "", step: 4 } as Draft
     setDraft(final)
     saveDraft(final)
     submitFinal(final)
@@ -103,8 +103,7 @@ export default function OnboardingPage() {
           business: finalDraft.business,
           services: finalDraft.services,
           schedules: finalDraft.schedules.map((s) => ({ ...s, slotInterval: finalDraft.slotInterval })),
-          zernioApiKey: finalDraft.zernio.apiKey,
-          zernioPhone: finalDraft.zernio.phone,
+          waNumber: finalDraft.waPhone,
         }),
       })
 
@@ -144,7 +143,7 @@ export default function OnboardingPage() {
             <Step3Schedule defaultValues={draft.schedules} onSave={handleStep3} />
           )}
           {draft.step === 3 && (
-            <Step4Zernio defaultValues={draft.zernio} onSave={handleStep4Save} onSkip={handleStep4Skip} />
+            <Step4Zernio defaultValues={{ phone: draft.waPhone }} onSave={handleStep4Save} onSkip={handleStep4Skip} />
           )}
           {draft.step > 0 && draft.step < 3 && (
             <div className="mt-4">

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 import { isGlobalCommand } from "@/lib/bot"
 import { handlers } from "@/lib/bot/handlers"
@@ -9,21 +8,8 @@ import type { BotState, BotContext, HandlerResult } from "@/lib/bot"
 const SESSION_TTL = 30 * 60 * 1000
 const CONFIRM_TTL = 5 * 60 * 1000
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ businessId: string }> }
-) {
-  const { businessId } = await params
-
+export async function POST(req: Request) {
   try {
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-    })
-
-    if (!business || !business.isActive) {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 })
-    }
-
     const raw = await req.text()
     const body = JSON.parse(raw)
 
@@ -31,6 +17,23 @@ export async function POST(
     if (body.event && body.event !== "message.received") {
       return NextResponse.json({ received: true })
     }
+
+    const account = body.account || {}
+    const accountId = account.id || body.channelId || ""
+    if (!accountId) {
+      return NextResponse.json({ error: "No accountId in payload" }, { status: 400 })
+    }
+
+    // Lookup business by Zernio account ID
+    const business = await prisma.business.findFirst({
+      where: { zernioAccountId: accountId },
+    })
+
+    if (!business || !business.isActive) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 })
+    }
+
+    const businessId = business.id
 
     // Respond cepat, proses sisanya async
     const res = NextResponse.json({ received: true })
@@ -40,12 +43,10 @@ export async function POST(
         const msg = body.message || body
         const sender = msg.sender || body.sender || {}
         const conversation = body.conversation || {}
-        const account = body.account || {}
         const metadata = body.metadata || msg.metadata || {}
 
         const conversationId = msg.conversationId || body.conversationId || ""
         const waNumber = sender.phoneNumber || sender.id || conversation.participantId || body.from || body.waNumber || ""
-        // Interactive reply: cek berbagai format
         const interactivePayload = msg.interactive || body.interactive || {}
         const interactiveType = metadata.interactiveType || interactivePayload?.type || ""
         const buttonReply = interactivePayload?.button_reply || {}
@@ -56,7 +57,7 @@ export async function POST(
 
         if (!waNumber || !message) return
 
-        console.log("[WEBHOOK] incoming:", JSON.stringify({ conversationId, accountId: account.id, isInteractive, message, waNumber }))
+        console.log("[WEBHOOK] incoming:", JSON.stringify({ businessId, conversationId, accountId, isInteractive, message, waNumber }))
 
         const displayName = sender.name || conversation.participantName || body.senderName || body.name || waNumber
         const avatarUrl = sender.avatar || body.avatarUrl || null
@@ -81,9 +82,7 @@ export async function POST(
           })
         }
 
-        // Kalau tidak ada API key, cukup simpan kontak saja (tidak kirim balasan)
-        if (!business.zernioApiKey) return
-        const apiKey = decryptApiKey(business.zernioApiKey)
+        if (!process.env.ZERNIO_API_KEY) return
 
         const now = new Date()
         let session = await prisma.botSession.findUnique({
@@ -101,7 +100,7 @@ export async function POST(
         let currentState = session.state as BotState
         let currentContext = (session.contextData || {}) as BotContext
 
-        const zernio = new ZernioClient(apiKey)
+        const zernio = new ZernioClient()
         const sendReply = (text: string) => {
           const p = conversationId && account.id
             ? zernio.sendInboxMessage(conversationId, account.id, text)
@@ -163,7 +162,6 @@ export async function POST(
         const ttl = result.newState === "CONFIRM" ? CONFIRM_TTL : SESSION_TTL
         await prisma.botSession.update({ where: { id: session.id }, data: { state: result.newState, contextData: (result.context || currentContext) as any, expiresAt: new Date(Date.now() + ttl) } })
 
-        // Prioritaskan flow message > interactive > text
         if (result.flowMessage && account.id) {
           const flowRes = await zernio.sendFlowMessage({
             accountId: account.id,

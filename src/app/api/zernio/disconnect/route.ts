@@ -15,7 +15,6 @@ export async function POST(req: Request) {
     await prisma.business.update({
       where: { id: businessId },
       data: {
-        zernioApiKey: null,
         zernioConnected: false,
       },
     })

@@ -4,8 +4,11 @@ export class ZernioClient {
   private apiKey: string
   private baseUrl: string
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey
+  constructor() {
+    this.apiKey = process.env.ZERNIO_API_KEY || ""
+    if (!this.apiKey) {
+      throw new Error("ZERNIO_API_KEY tidak ditemukan di environment variables")
+    }
     this.baseUrl = ZERNIO_API_URL
   }
 

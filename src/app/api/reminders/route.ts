@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { decryptApiKey } from "@/lib/crypto"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function POST(req: Request) {
@@ -35,7 +34,7 @@ export async function POST(req: Request) {
       const { booking } = reminder
       const business = booking.business
 
-      if (!business.zernioApiKey) {
+      if (!process.env.ZERNIO_API_KEY) {
         await prisma.reminder.update({
           where: { id: reminder.id },
           data: { status: "FAILED", sentAt: now },
@@ -45,8 +44,7 @@ export async function POST(req: Request) {
       }
 
       try {
-        const apiKey = decryptApiKey(business.zernioApiKey)
-        const zernio = new ZernioClient(apiKey)
+        const zernio = new ZernioClient()
 
         let message = ""
         if (reminder.type === "DAY_BEFORE") {

@@ -27,7 +27,7 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json()
-    const { id, name, type, address, description, logoUrl, timezone, waNumber, reminderTemplate, confirmTemplate, welcomeMessage, zernioApiKey } = body
+    const { id, name, type, address, description, logoUrl, timezone, waNumber, reminderTemplate, confirmTemplate, welcomeMessage } = body
 
     const business = await prisma.business.findFirst({
       where: { id, ownerId: session.user.id },
@@ -50,7 +50,6 @@ export async function PATCH(req: Request) {
         ...(reminderTemplate !== undefined && { reminderTemplate }),
         ...(confirmTemplate !== undefined && { confirmTemplate }),
         ...(welcomeMessage !== undefined && { welcomeMessage }),
-        ...(zernioApiKey !== undefined && { zernioApiKey }),
       },
     })
 
