@@ -24,6 +24,12 @@ export async function GET(req: Request) {
         dailySummaryEnabled: true,
         waNumber: { not: null },
       },
+      select: {
+        id: true,
+        name: true,
+        waNumber: true,
+        zernioAccountId: true,
+      },
     })
 
     let sent = 0
@@ -31,7 +37,7 @@ export async function GET(req: Request) {
 
     for (const business of businesses) {
       try {
-        if (!business.waNumber) {
+        if (!business.waNumber || !business.zernioAccountId) {
           skipped++
           continue
         }
@@ -58,7 +64,7 @@ export async function GET(req: Request) {
         const message = `📊 Ringkasan Harian ${business.name}\n${todayStart.toLocaleDateString("id-ID")}\n\nTotal Booking: ${total}\n✅ Dikonfirmasi: ${confirmed}\n⏳ Pending: ${pending}\n❌ Dibatalkan: ${cancelled}\n✔️ Selesai: ${completed}\n\nTerima kasih telah menggunakan WaBooking!`
 
         const zernio = new ZernioClient()
-        await zernio.sendText(business.waNumber, message)
+        await zernio.sendText(business.waNumber, message, business.zernioAccountId)
         sent++
       } catch (err) {
         console.error(`[DAILY_SUMMARY] Failed for business ${business.id}:`, err)

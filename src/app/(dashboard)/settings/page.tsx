@@ -450,7 +450,7 @@ function IntegrasiTab({
     if (zernioParam === "connected") {
       (async () => {
         try {
-          const res = await fetch(`/api/zernio/accounts`);
+          const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`);
           if (res.ok) {
             const data = await res.json();
             const wa = Array.isArray(data.accounts)
@@ -528,6 +528,7 @@ function IntegrasiTab({
       const res = await fetch("/api/zernio/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: business.id }),
       });
       const data = await res.json();
       setTestResult({
@@ -548,7 +549,7 @@ function IntegrasiTab({
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch(`/api/zernio/accounts`);
+      const res = await fetch(`/api/zernio/accounts?businessId=${business.id}`);
       if (!res.ok) throw new Error("Gagal sync");
       const data = await res.json();
       const wa = Array.isArray(data.accounts)

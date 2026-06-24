@@ -1,17 +1,33 @@
 import { NextResponse } from "next/server"
+import { prisma } from "@/lib/db"
 import { ZernioClient } from "@/lib/zernio"
 
 export async function GET(req: Request) {
   try {
-    const zernio = new ZernioClient()
+    const { searchParams } = new URL(req.url)
+    const businessId = searchParams.get("businessId")
 
-    // Try with platform filter first, then without
+    if (!businessId) {
+      return NextResponse.json({ error: "Business ID wajib diisi" }, { status: 400 })
+    }
+
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { zernioAccountId: true },
+    })
+
+    const zernio = new ZernioClient()
     let accounts = await zernio.getAccounts("whatsapp")
     if (accounts.length === 0) {
       accounts = await zernio.getAccounts()
     }
 
-    console.log("[ZERNIO ACCOUNTS] raw accounts:", JSON.stringify(accounts))
+    // Filter hanya akun milik tenant ini
+    if (business?.zernioAccountId) {
+      accounts = accounts.filter((a) => a.id === business.zernioAccountId)
+    } else {
+      accounts = []
+    }
 
     return NextResponse.json({ accounts })
   } catch (error) {

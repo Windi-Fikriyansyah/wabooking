@@ -14,8 +14,10 @@ import { Step4Zernio } from "@/components/onboarding/Step4Zernio"
 
 const STEPS = ["Info Bisnis", "Tambah Layanan", "Atur Jadwal", "Hubungkan Zernio"]
 const STORAGE_KEY = "wabooking_onboarding_draft"
+const DRAFT_VERSION = 2
 
 interface Draft {
+  version: number
   step: number
   business: Partial<BusinessFormData>
   services: ServiceItem[]
@@ -26,6 +28,7 @@ interface Draft {
 
 function defaultDraft(): Draft {
   return {
+    version: DRAFT_VERSION,
     step: 0,
     business: { name: "", type: "", address: "", description: "", logoUrl: "" },
     services: [],
@@ -41,7 +44,7 @@ function loadDraft(): Draft {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Draft
-      if (parsed && typeof parsed.step === "number") return parsed
+      if (parsed && typeof parsed.step === "number" && parsed.version === DRAFT_VERSION) return parsed
     }
   } catch {}
   return defaultDraft()
@@ -80,14 +83,14 @@ export default function OnboardingPage() {
   const handleStep3 = (schedules: ScheduleDay[], slotInterval: number) => updateDraft({ schedules, slotInterval, step: 3 })
 
   const handleStep4Save = (data: { phone: string }) => {
-    const final = { ...draft, waPhone: data.phone, step: 4 } as Draft
+    const final = { ...draft, waPhone: data.phone, step: 4, version: DRAFT_VERSION }
     setDraft(final)
     saveDraft(final)
     submitFinal(final)
   }
 
   const handleStep4Skip = () => {
-    const final = { ...draft, waPhone: "", step: 4 } as Draft
+    const final = { ...draft, waPhone: "", step: 4, version: DRAFT_VERSION }
     setDraft(final)
     saveDraft(final)
     submitFinal(final)

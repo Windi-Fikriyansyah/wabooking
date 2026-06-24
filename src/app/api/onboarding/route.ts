@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { ZernioClient } from "@/lib/zernio"
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -49,6 +50,25 @@ export async function POST(req: Request) {
         },
       },
     })
+
+    // Buat profile Zernio setelah business agar bisa pakai ID sebagai unique suffix
+    if (process.env.ZERNIO_API_KEY) {
+      try {
+        const zernio = new ZernioClient()
+        const profile = await zernio.createProfile(
+          `${business.name} - ${biz.id}`,
+          business.description || `Profile for ${business.name}`,
+          "#4CAF50"
+        )
+        await prisma.business.update({
+          where: { id: biz.id },
+          data: { zernioProfileId: profile.id },
+        })
+        console.log("[ONBOARDING] Zernio profile created:", profile.id)
+      } catch (err) {
+        console.error("[ONBOARDING] Gagal buat profile Zernio:", err)
+      }
+    }
 
     return NextResponse.json(
       { message: "Onboarding selesai", businessId: biz.id },

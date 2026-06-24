@@ -30,6 +30,10 @@ export function createNotificationWorker() {
         throw new Error(`Business ${businessId} has no WA number configured`)
       }
 
+      if (!business.zernioAccountId) {
+        throw new Error(`Business ${businessId} has no Zernio account connected`)
+      }
+
       const zernio = new ZernioClient()
 
       let message = ""
@@ -50,7 +54,7 @@ export function createNotificationWorker() {
           message = `Notifikasi: ${customerName} - ${serviceName}`
       }
 
-      await zernio.sendText(business.waNumber, message)
+      await zernio.sendText(business.waNumber, message, business.zernioAccountId)
     },
     {
       connection: connection as any,

@@ -43,6 +43,15 @@ export async function POST(req: Request) {
         continue
       }
 
+      if (!business.zernioAccountId) {
+        await prisma.reminder.update({
+          where: { id: reminder.id },
+          data: { status: "FAILED", sentAt: now },
+        })
+        failed++
+        continue
+      }
+
       try {
         const zernio = new ZernioClient()
 
@@ -54,7 +63,7 @@ export async function POST(req: Request) {
         }
 
         if (message) {
-          await zernio.sendText(booking.customerWa, message)
+          await zernio.sendText(booking.customerWa, message, business.zernioAccountId)
         }
 
         await prisma.reminder.update({

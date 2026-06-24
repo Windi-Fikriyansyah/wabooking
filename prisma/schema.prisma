@@ -52,6 +52,7 @@ model Business {
   timezone         String    @default("Asia/Jakarta")
   zernioConnected  Boolean   @default(false)
   zernioAccountId  String?
+  zernioProfileId  String?
   waNumber         String?
   waConnected      Boolean   @default(false)
   reminderTemplate String?

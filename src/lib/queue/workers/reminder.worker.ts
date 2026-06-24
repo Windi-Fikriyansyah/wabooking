@@ -75,8 +75,15 @@ export function createReminderWorker() {
         message = `Halo ${booking.customerName}, booking kamu dalam 1 jam:\n\nLayanan: ${booking.service.name}\nJam: ${scheduledTime}\n\nMohon tepat waktu!`
       }
 
-      if (message) {
-        await zernio.sendText(booking.customerWa, message)
+      if (message && business.zernioAccountId) {
+        await zernio.sendText(booking.customerWa, message, business.zernioAccountId)
+      } else if (message) {
+        console.error("[REMINDER_WORKER] No zernioAccountId for business", business.id)
+        await prisma.reminder.update({
+          where: { id: reminderId },
+          data: { status: "FAILED" },
+        })
+        return
       }
 
       await prisma.reminder.update({

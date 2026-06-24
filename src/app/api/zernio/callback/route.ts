@@ -21,9 +21,14 @@ export async function GET(req: Request) {
     }
 
     const zernio = new ZernioClient()
-    const profile = await zernio.getOrCreateProfile()
 
-    await zernio.exchangeOAuthCode("whatsapp", code, state, profile.id)
+    // Simpan profileId jika belum ada
+    await prisma.business.update({
+      where: { id: businessId },
+      data: { zernioProfileId: profileId },
+    }).catch(() => {})
+
+    await zernio.exchangeOAuthCode("whatsapp", code, state, profileId)
 
     // Poll for connected WhatsApp account
     let waNumber: string | null = null

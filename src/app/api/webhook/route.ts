@@ -104,7 +104,7 @@ export async function POST(req: Request) {
         const sendReply = (text: string) => {
           const p = conversationId && account.id
             ? zernio.sendInboxMessage(conversationId, account.id, text)
-            : zernio.sendText(waNumber, text)
+            : zernio.sendText(waNumber, text, account.id)
           return p.catch((err: Error) => console.error("[WEBHOOK] Gagal kirim pesan:", err.message))
         }
 

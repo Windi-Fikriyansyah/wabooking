@@ -15,6 +15,18 @@ export async function POST(req: Request) {
       )
     }
 
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { zernioAccountId: true },
+    })
+
+    if (!business?.zernioAccountId) {
+      return NextResponse.json(
+        { error: "Belum ada akun WhatsApp terhubung" },
+        { status: 400 }
+      )
+    }
+
     const zernio = new ZernioClient()
     const validation = await zernio.validateApiKey()
 
@@ -25,7 +37,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const connection = await zernio.checkConnection()
+    const connection = await zernio.checkConnection(business.zernioAccountId)
 
     await prisma.business.update({
       where: { id: businessId },

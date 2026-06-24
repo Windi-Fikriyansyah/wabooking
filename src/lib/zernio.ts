@@ -69,8 +69,13 @@ export class ZernioClient {
     }))
   }
 
-  async createProfile(name: string): Promise<any> {
-    return this.request("POST", "/v1/profiles", { name })
+  async createProfile(name: string, description?: string, color?: string): Promise<{ id: string; name: string }> {
+    const body: Record<string, unknown> = { name }
+    if (description) body.description = description
+    if (color) body.color = color
+    const data = await this.request("POST", "/v1/profiles", body)
+    const profile = data.profile ?? data.data ?? data
+    return { id: profile._id ?? profile.id, name: profile.name ?? name }
   }
 
   async getOrCreateProfile(): Promise<{ id: string; name: string }> {
@@ -78,8 +83,7 @@ export class ZernioClient {
     if (profiles.length > 0) {
       return profiles[0]
     }
-    const created = await this.createProfile("WaBooking")
-    return { id: created._id ?? created.id, name: "WaBooking" }
+    return this.createProfile("WaBooking")
   }
 
   async getConnectUrl(
@@ -124,7 +128,7 @@ export class ZernioClient {
     }
   }
 
-  async checkConnection(): Promise<{
+  async checkConnection(accountId: string): Promise<{
     connected: boolean
     waNumber?: string
     error?: string
@@ -134,9 +138,7 @@ export class ZernioClient {
       if (!user) throw new Error("API key tidak valid")
 
       const accounts = await this.getAccounts()
-      const wa = accounts.find(
-        (a) => a.platform === "whatsapp" || a.platform === "wa"
-      )
+      const wa = accounts.find((a) => a.id === accountId)
 
       if (wa) {
         return {
@@ -157,10 +159,10 @@ export class ZernioClient {
     }
   }
 
-  async sendText(to: string, message: string): Promise<boolean> {
+  async sendText(to: string, message: string, accountId: string): Promise<boolean> {
     const accounts = await this.getAccounts()
-    const wa = accounts.find((a) => a.platform === "whatsapp")
-    if (!wa) throw new Error("Tidak ada akun WhatsApp terhubung")
+    const wa = accounts.find((a) => a.id === accountId)
+    if (!wa) throw new Error("Akun WhatsApp tidak ditemukan")
 
     await this.request("POST", "/v1/inbox/conversations", {
       accountId: wa.id,
