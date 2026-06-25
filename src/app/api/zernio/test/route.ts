@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { zernioAccountId: true },
+      select: { zernioAccountId: true, zernioProfileId: true },
     })
 
     if (!business?.zernioAccountId) {
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     const zernio = new ZernioClient()
-    const status = await zernio.checkConnection(business.zernioAccountId)
+    const status = await zernio.checkConnection(business.zernioAccountId, business.zernioProfileId || undefined)
 
     return NextResponse.json(status)
   } catch (error) {

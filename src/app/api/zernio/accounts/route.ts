@@ -13,13 +13,13 @@ export async function GET(req: Request) {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { zernioAccountId: true },
+      select: { zernioAccountId: true, zernioProfileId: true },
     })
 
     const zernio = new ZernioClient()
-    let accounts = await zernio.getAccounts("whatsapp")
+    let accounts = await zernio.getAccounts("whatsapp", business?.zernioProfileId || undefined)
     if (accounts.length === 0) {
-      accounts = await zernio.getAccounts()
+      accounts = await zernio.getAccounts(undefined, business?.zernioProfileId || undefined)
     }
 
     // Filter hanya akun milik tenant ini

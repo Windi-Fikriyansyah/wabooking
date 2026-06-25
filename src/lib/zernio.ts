@@ -53,10 +53,14 @@ export class ZernioClient {
   }
 
   async getAccounts(
-    platform?: string
+    platform?: string,
+    profileId?: string
   ): Promise<{ id: string; platform: string; username: string; status: string; name?: string; phone?: string }[]> {
-    const params = platform ? `?platform=${platform}` : ""
-    const data = await this.request("GET", `/v1/accounts${params}`)
+    const params = new URLSearchParams()
+    if (platform) params.set("platform", platform)
+    if (profileId) params.set("profileId", profileId)
+    const query = params.toString()
+    const data = await this.request("GET", `/v1/accounts${query ? `?${query}` : ""}`)
     const raw = data.accounts ?? data?.data?.accounts ?? data ?? []
     const accounts = Array.isArray(raw) ? raw : []
     return accounts.map((a: any) => ({
@@ -128,7 +132,7 @@ export class ZernioClient {
     }
   }
 
-  async checkConnection(accountId: string): Promise<{
+  async checkConnection(accountId: string, profileId?: string): Promise<{
     connected: boolean
     waNumber?: string
     error?: string
@@ -137,7 +141,7 @@ export class ZernioClient {
       const user = await this.getUser()
       if (!user) throw new Error("API key tidak valid")
 
-      const accounts = await this.getAccounts()
+      const accounts = await this.getAccounts(undefined, profileId)
       const wa = accounts.find((a) => a.id === accountId)
 
       if (wa) {

@@ -21,6 +21,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Minimal 1 layanan harus ditambahkan" }, { status: 400 })
     }
 
+    // Buat profile Zernio dulu sebelum business, supaya jika gagal tidak ada data tersimpan
+    let zernioProfileId: string | null = null
+    if (process.env.ZERNIO_API_KEY) {
+      try {
+        const zernio = new ZernioClient()
+        const profile = await zernio.createProfile(
+          `${business.name} - ${session.user.id}`,
+          business.description || `Profile for ${business.name}`,
+          "#4CAF50"
+        )
+        zernioProfileId = profile.id
+        console.log("[ONBOARDING] Zernio profile created:", zernioProfileId)
+      } catch (err) {
+        console.error("[ONBOARDING] Gagal buat profile Zernio:", err)
+        return NextResponse.json(
+          { error: "Gagal membuat profile Zernio. Pastikan API key Zernio valid." },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (!zernioProfileId) {
+      return NextResponse.json(
+        { error: "Zernio profile ID tidak boleh kosong. Konfigurasi Zernio diperlukan." },
+        { status: 500 }
+      )
+    }
+
     const biz = await prisma.business.create({
       data: {
         ownerId: session.user.id,
@@ -30,6 +58,7 @@ export async function POST(req: Request) {
         description: business.description || null,
         logoUrl: business.logoUrl || null,
         waNumber: waNumber || null,
+        zernioProfileId,
         services: {
           create: services.map((s: any, i: number) => ({
             name: s.name,
@@ -50,25 +79,6 @@ export async function POST(req: Request) {
         },
       },
     })
-
-    // Buat profile Zernio setelah business agar bisa pakai ID sebagai unique suffix
-    if (process.env.ZERNIO_API_KEY) {
-      try {
-        const zernio = new ZernioClient()
-        const profile = await zernio.createProfile(
-          `${business.name} - ${biz.id}`,
-          business.description || `Profile for ${business.name}`,
-          "#4CAF50"
-        )
-        await prisma.business.update({
-          where: { id: biz.id },
-          data: { zernioProfileId: profile.id },
-        })
-        console.log("[ONBOARDING] Zernio profile created:", profile.id)
-      } catch (err) {
-        console.error("[ONBOARDING] Gagal buat profile Zernio:", err)
-      }
-    }
 
     return NextResponse.json(
       { message: "Onboarding selesai", businessId: biz.id },
